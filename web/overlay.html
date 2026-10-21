@@ -1,0 +1,109 @@
+<!doctype html><html lang="__LANG__"><meta charset="utf-8">
+<style>
+html,body{margin:0;background:transparent;overflow:hidden;color:white;font-family:Arial,sans-serif}
+#stack{position:fixed;bottom:12px;left:3%;right:3%;max-height:calc(100vh - 24px);display:flex;
+flex-direction:column;gap:8px;align-items:center;overflow:hidden}
+.row{flex:none;box-sizing:border-box;max-width:100%;text-align:center;border-radius:12px;padding:10px 20px;
+line-height:1.15;white-space:normal;overflow-wrap:anywhere;min-width:0;text-shadow:0 2px 3px #000}
+.original,.translation{margin-top:4px}
+</style><div id="stack"></div>
+<script>
+const lang='__LANG__',stack=document.getElementById('stack');
+let busy=false,lastSuccess=0,lastKey='';
+function rgba(hex,opacity){const n=parseInt(hex.slice(1),16);return `rgba(${n>>16},${n>>8&255},${n&255},${opacity/100})`;}
+const languageNames=new Intl.DisplayNames(['es'],{type:'language'});
+function languageLabel(row){
+  const codes=new Set((row.spans||[]).filter(p=>/\p{L}/u.test(p.text)).map(p=>p.language));
+  if(!codes.size||codes.has('und'))return 'Idioma sin confirmar';
+  if(codes.size>1)return 'Idiomas mixtos';
+  const code=[...codes][0];let name;try{name=languageNames.of(code);}catch{name=code;}
+  return name.charAt(0).toLocaleUpperCase('es')+name.slice(1);
+}
+function label(element,name){const span=document.createElement('span');span.className='language-label';span.textContent=name+': ';element.append(span);}
+function renderOriginal(element,row,showLabel=false){
+  if(showLabel)label(element,languageLabel(row));
+  if(row.spans?.length){for(const part of row.spans){const span=document.createElement('span');span.textContent=part.text;span.style.color=part.color;element.append(span);}}
+  else{element.append(document.createTextNode(row.source));}
+}
+function font(element,style,translation=false){
+  const prefix=translation&&!style.translation_use_original_font?'translation_':'';
+  element.style.fontFamily=style[prefix+'font_face']||style.font_face;
+  element.style.fontSize=(style[prefix+'font_size']||style.font_size)+'px';
+  const flags=style[prefix+'font_flags']??style.font_flags;
+  element.style.fontWeight=flags&1?'bold':'normal';element.style.fontStyle=flags&2?'italic':'normal';
+  element.style.textDecoration=[flags&4?'underline':'',flags&8?'line-through':''].join(' ');
+}
+function spanishOnly(row){
+  const parts=(row.spans||[]).filter(p=>/\p{L}/u.test(p.text));
+  return parts.length>0&&parts.every(p=>p.language==='es');
+}
+function sameText(a,b){return a.normalize('NFKC').toLocaleLowerCase('es').replace(/[\p{P}\p{Z}\s]/gu,'')===b.normalize('NFKC').toLocaleLowerCase('es').replace(/[\p{P}\p{Z}\s]/gu,'');}
+const words=new Intl.Segmenter(undefined,{granularity:'word'}),graphemes=new Intl.Segmenter(undefined,{granularity:'grapheme'});
+function cropOriginal(row,cut){
+  const tail=row.source.slice(cut),trimmed=tail.trimStart();let skip=cut+tail.length-trimmed.length;
+  const spans=[];for(const part of row.spans||[]){if(skip<part.text.length)spans.push({...part,text:part.text.slice(skip)});skip=Math.max(0,skip-part.text.length);}
+  return {...row,source:trimmed,spans};
+}
+function groupFlowRows(rows){
+  const groups=[];
+  for(const row of rows){
+    const flow=row.flow_group??row.id,previous=groups.at(-1);
+    const spans=row.spans?.length?row.spans:[{text:row.source,language:row.language,color:row.color}];
+    if(!previous||previous.flow_group!==flow){groups.push({...row,flow_group:flow,spans:[...spans]});continue;}
+    const separator=previous.source&&row.source?' ':'';
+    previous.source+=separator+row.source;
+    if(separator)previous.spans.push({text:separator,language:'und',color:row.color});
+    previous.spans.push(...spans);previous.id=row.id;
+    for(const code of ['es','en'])previous[code]=[previous[code],row[code]].filter(Boolean).join(' ');
+  }
+  return groups;
+}
+function fitBlock(element,text,render,maxLines){
+  render(0);const height=parseFloat(getComputedStyle(element).lineHeight)*maxLines+1;
+  if(element.scrollHeight<=height)return;
+  let boundaries=[...words.segment(text)].map(p=>p.index);
+  if(boundaries.length<2)boundaries=[...graphemes.segment(text)].map(p=>p.index);
+  let low=0,high=boundaries.length-1;
+  while(low<high){const middle=(low+high)>>1;render(boundaries[middle]);if(element.scrollHeight>height)low=middle+1;else high=middle;}
+  render(boundaries[low]||0);
+  // A single unusually long token may still exceed the limit; retain valid graphemes.
+  if(element.scrollHeight>height){boundaries=[...graphemes.segment(text)].map(p=>p.index);low=0;high=boundaries.length-1;
+    while(low<high){const middle=(low+high)>>1;render(boundaries[middle]);if(element.scrollHeight>height)low=middle+1;else high=middle;}render(boundaries[low]||0);}
+}
+async function tick(){
+  if(busy)return;busy=true;
+  try{
+    const response=await fetch('/api/state',{cache:'no-store',signal:AbortSignal.timeout(700)});
+    if(!response.ok)throw Error();
+    const s=await response.json();lastSuccess=performance.now();
+    const style=s.style,visibleRows=style.stack?s.rows.slice(-style.max_rows):s.rows.slice(-1);
+    const key=JSON.stringify([s.revision,visibleRows.map(r=>[r.id,r.epoch,r.flow_group]),style,innerWidth,innerHeight]);
+    if(key!==lastKey){
+      const rows=groupFlowRows(visibleRows);
+      stack.replaceChildren();
+      for(const row of rows){
+        const showLabels=s.translation_enabled&&style.translation_show_language_labels!==false;
+        const translated=lang!=='original'&&!!row[lang]&&!spanishOnly(row)&&!sameText(row[lang],row.source);
+        const text=translated?row[lang]:row.source;if(!text)continue;
+        const element=document.createElement('div');element.className='row';
+        element.style.color=row.color;element.style.backgroundColor=rgba(style.background_color,style.background_opacity);
+        const target=document.createElement('div');font(target,style,translated);element.append(target);stack.append(element);
+        const maxLines=style.max_lines_per_language||2;let visible=row;
+        fitBlock(target,text,cut=>{target.replaceChildren();if(!translated){visible=cropOriginal(row,cut);renderOriginal(target,visible,showLabels);}else{if(showLabels)label(target,'Español');target.append(document.createTextNode(text.slice(cut).trimStart()));target.style.color=s.translation_display_color;}},maxLines);
+        if(lang==='original'&&s.translation_enabled&&row.es&&!spanishOnly(visible)&&!sameText(row.es,row.source)){
+          const translation=document.createElement('div');translation.className='translation';
+          font(translation,style,true);translation.style.color=s.translation_display_color;
+          element.append(translation);fitBlock(translation,row.es,cut=>{translation.replaceChildren();if(showLabels)label(translation,'Español');translation.append(document.createTextNode(row.es.slice(cut).trimStart()));},maxLines);
+        }
+        if(translated&&style.show_original&&row.id===s.segment&&!s.final){
+          const source=document.createElement('div');source.className='original';font(source,style);element.append(source);fitBlock(source,row.source,cut=>{source.replaceChildren();renderOriginal(source,cropOriginal(row,cut),showLabels);},maxLines);
+        }
+      }
+      while(stack.scrollHeight>stack.clientHeight+1&&stack.children.length>1)stack.firstElementChild.remove();
+      lastKey=key;
+    }
+  }catch{if(performance.now()-lastSuccess>1500){stack.replaceChildren();lastKey='';}}
+  finally{busy=false;}
+}
+setInterval(tick,50);tick();
+</script></html>

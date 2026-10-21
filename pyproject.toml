@@ -1,0 +1,26 @@
+[project]
+name = "obs-bilingue"
+version = "0.4.0"
+description = "Subtitulos multilingues locales para OBS con memoria acotada"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "numpy==2.5.4", "soxr>=1.0,<2",
+  "fastapi==0.143.1", "uvicorn==0.54.0", "websockets==17.2",
+  "httpx==0.28.1", "huggingface-hub==2.2.0", "psutil>=7,<8", "langid==1.1.6", "sherpa-onnx==1.13.8",
+  "lingua-language-detector==2.2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1", "ruff==0.17.0"]
+cuda = ["torch==2.11.0", "torchaudio==2.11.0", "transformers==5.19.0", "librosa==1.0.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]

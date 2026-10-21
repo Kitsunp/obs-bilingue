@@ -1,0 +1,55 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Vista previa de subtítulos</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;font:16px system-ui;color:#edf2f8;background:#121923}
+header{padding:22px 28px;border-bottom:1px solid #314156}h1{font-size:23px;margin:0 0 6px}p{margin:4px 0;color:#bcc8d6}
+#stage{position:absolute;left:24px;right:24px;top:125px;bottom:50px;background-color:#283545;
+background-image:linear-gradient(45deg,#344357 25%,transparent 25%,transparent 75%,#344357 75%),linear-gradient(45deg,#344357 25%,transparent 25%,transparent 75%,#344357 75%);background-size:32px 32px;background-position:0 0,16px 16px;border-radius:12px;overflow:hidden}
+#stack{position:absolute;bottom:14px;left:3%;right:3%;max-height:calc(100% - 28px);display:flex;flex-direction:column;align-items:center;gap:8px;overflow:hidden}
+.row{flex:none;max-width:100%;text-align:center;border-radius:12px;padding:10px 20px;line-height:1.15;white-space:normal;overflow-wrap:anywhere;min-width:0;text-shadow:0 2px 3px #000}
+footer{position:absolute;bottom:12px;left:28px;color:#bcc8d6;font-size:14px}.swatch{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px}
+</style>
+<header><h1>Vista previa de apariencia</h1><p>Texto de ejemplo. Esta ventana no se incorpora a tu emisión ni escucha audio.</p><p id="legend"></p></header>
+<div id="stage"><div id="stack"></div></div><footer id="details"></footer>
+<script>
+const stack=document.getElementById('stack'),legend=document.getElementById('legend');
+const names={en:'Inglés',es:'Español',ja:'Japonés',ko:'Coreano',zh:'Chino',fr:'Francés',de:'Alemán',pt:'Portugués',it:'Italiano',ru:'Ruso',ar:'Árabe',hi:'Hindi',vi:'Vietnamita',uk:'Ucraniano',nl:'Neerlandés',tr:'Turco',pl:'Polaco',sv:'Sueco',cs:'Checo',nb:'Noruego',da:'Danés',bg:'Búlgaro',fi:'Finés',hr:'Croata',sk:'Eslovaco',hu:'Húngaro',ro:'Rumano',et:'Estonio'};
+const samples={en:'This is how English subtitles look.',es:'Así se verán los subtítulos en español.',ja:'日本語の字幕のプレビューです。',ko:'한국어 자막 미리보기입니다.',zh:'这是中文字幕的预览。',fr:'Voici un aperçu des sous-titres.',de:'So sehen die Untertitel aus.',pt:'Assim ficam as legendas.',it:'Ecco come appaiono i sottotitoli.'};
+let style={},rules=[],rows=[],cursor=0;
+function background(hex,opacity){const n=parseInt(hex.slice(1),16);return `rgba(${n>>16},${n>>8&255},${n&255},${opacity/100})`;}
+const words=new Intl.Segmenter(undefined,{granularity:'word'}),graphemes=new Intl.Segmenter(undefined,{granularity:'grapheme'});
+function fitBlock(element,text,render,maxLines){
+  render(0);const height=parseFloat(getComputedStyle(element).lineHeight)*maxLines+1;
+  if(element.scrollHeight<=height)return;
+  let boundaries=[...words.segment(text)].map(p=>p.index);
+  if(boundaries.length<2)boundaries=[...graphemes.segment(text)].map(p=>p.index);
+  let low=0,high=boundaries.length-1;
+  while(low<high){const middle=(low+high)>>1;render(boundaries[middle]);if(element.scrollHeight>height)low=middle+1;else high=middle;}
+  render(boundaries[low]||0);
+  // A single unusually long token may still exceed the limit; retain valid graphemes.
+  if(element.scrollHeight>height){boundaries=[...graphemes.segment(text)].map(p=>p.index);low=0;high=boundaries.length-1;
+    while(low<high){const middle=(low+high)>>1;render(boundaries[middle]);if(element.scrollHeight>height)low=middle+1;else high=middle;}render(boundaries[low]||0);}
+}
+function draw(){
+  const now=performance.now();rows=rows.filter(r=>now-r.at<style.duration_seconds*1000).slice(-(style.stack?style.max_rows:1));stack.replaceChildren();
+  for(const row of rows){const el=document.createElement('div'),original=document.createElement('div');el.className='row';original.className='source';const sourceLabel=style.translation_enabled&&style.translation_show_language_labels!==false?((names[row.code]||'Idioma sin confirmar')+': '):'';el.append(original);stack.append(el);
+    Object.assign(el.style,{color:row.color,backgroundColor:background(style.background_color,style.background_opacity)});
+    Object.assign(original.style,{fontFamily:style.font_face,fontSize:style.font_size+'px',fontWeight:style.font_flags&1?'bold':'normal',fontStyle:style.font_flags&2?'italic':'normal',textDecoration:[style.font_flags&4?'underline':'',style.font_flags&8?'line-through':''].join(' ')});
+    fitBlock(original,row.text,cut=>{original.textContent=sourceLabel+row.text.slice(cut).trimStart();},style.max_lines_per_language||2);
+    if(style.translation_enabled&&row.code!=='es'){
+      const tr=document.createElement('div'),prefix=style.translation_use_original_font?'':'translation_';tr.className='translation';const translationText='Traducción de ejemplo al español',translationLabel=style.translation_show_language_labels!==false?'Español: ':'';
+      const flags=style[prefix+'font_flags']??style.font_flags;
+      Object.assign(tr.style,{marginTop:'4px',fontFamily:style[prefix+'font_face']||style.font_face,fontSize:(style[prefix+'font_size']||style.font_size)+'px',fontWeight:flags&1?'bold':'normal',fontStyle:flags&2?'italic':'normal',textDecoration:[flags&4?'underline':'',flags&8?'line-through':''].join(' '),color:style.translation_use_spanish_color?(rules.find(r=>r.code==='es')?.color||style.default_color):style.translation_color});el.append(tr);fitBlock(tr,translationText,cut=>{tr.textContent=translationLabel+translationText.slice(cut).trimStart();},style.max_lines_per_language||2);
+    }
+    }
+  while(stack.scrollHeight>stack.clientHeight+1&&stack.children.length>1)stack.firstElementChild.remove();
+}
+function append(){if(!rules.length)return;const rule=rules[cursor++%rules.length];rows.push({at:performance.now(),code:rule.code,color:rule.color,text:samples[rule.code]||(rule.code==='und'?'Otro idioma · color predeterminado':(names[rule.code]||rule.code)+' · Vista previa de subtítulos')});draw();}
+function update(){try{style=JSON.parse(decodeURIComponent(location.hash.slice(1)));}catch{return;}
+  rules=(style.color_rules||'').split('\n').map(line=>line.match(/^([a-z]{2,3})=(#[A-Fa-f0-9]{6})$/)).filter(Boolean).map(m=>({code:m[1],color:m[2]}));
+  rules.push({code:'und',color:style.default_color});legend.replaceChildren();
+  for(const rule of rules){const item=document.createElement('span'),dot=document.createElement('span');dot.className='swatch';dot.style.backgroundColor=rule.color;item.append(dot,document.createTextNode((names[rule.code]||'Predeterminado')+'  '));legend.append(item);}
+  document.getElementById('details').textContent=`${style.font_face} · ${style.font_size}px · ${style.stack?'Cola de '+style.max_rows:'Una línea'} · ${style.duration_seconds}s en pantalla`;
+  rows=[];cursor=0;for(let i=0;i<Math.min(rules.length,style.stack?style.max_rows:1);i++)append();
+}
+addEventListener('hashchange',update);update();setInterval(append,1700);setInterval(draw,250);
+</script></html>

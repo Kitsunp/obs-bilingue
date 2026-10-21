@@ -1,0 +1,33 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bilingüe · OBS</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui;background:#0d1119;color:#e4eaf2}
+body{max-width:960px;margin:48px auto;padding:0 24px}h1{font-size:38px;letter-spacing:-1px;margin-bottom:8px}
+.sub{color:#98a8bc}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}
+.card,section{background:#151d2a;border:1px solid #26364c;border-radius:16px;padding:20px}.value{font-size:32px;font-weight:600}
+.label{color:#98a8bc;font-size:13px}.good{color:#75dfba}.bad{color:#ffbc83}section{margin:14px 0}a{color:#8dc8ff}code{word-break:break-all}
+#error{color:#ffbc83;white-space:pre-wrap}.caption{font-size:23px;min-height:35px}small{color:#98a8bc}.pill{padding:6px 12px;background:#20354a;border-radius:30px}
+</style>
+<h1>Bilingüe <span class="good">●</span></h1><p class="sub">Subtítulos locales para OBS · idioma hablado automático</p>
+<p><span id="status" class="pill">Conectando…</span></p><p id="error"></p>
+<p class="sub">Idioma de entrada: <b id="language">automático</b> · Colores configurables en las propiedades de la fuente de OBS.</p>
+<div class="grid"><div class="card"><div class="label">GPU GLOBAL · MEDIA DE HASTA 60 S</div><div id="gpu" class="value">—</div><small>Objetivo ≤20 %. Incluye OBS y otras apps.</small></div>
+<div class="card"><div class="label">RAM DEL MOTOR Y TRADUCTOR</div><div id="ram" class="value">—</div><small>Sin historial de audio ni transcripciones.</small></div>
+<div class="card"><div class="label">TRADUCCIÓN · ÚLTIMO TRABAJO</div><div id="latency" class="value">—</div><small>Tiempo de cálculo; no es latencia acústica.</small></div></div>
+<section><small>SUBTÍTULO EN EL IDIOMA HABLADO</small><p id="source" class="caption"></p><small>TRADUCCIÓN AL ESPAÑOL · OPCIONAL</small><p id="es" class="caption"></p></section>
+<section><b>Conectar con OBS</b><p>En <b>Fuentes → +</b>, añade <b>Bilingue - Subtitulos de voz en directo</b>. En sus propiedades selecciona el audio que quieras subtitular.</p>
+<p>El texto conserva el idioma hablado. Configura letra, fondo, duración, cola y colores por idioma en esa misma fuente. La casilla <b>Añadir traducción al español</b> está desactivada de entrada.</p>
+<p><a href="/overlay/original">Ver subtítulos</a> · <code id="overlay-url"></code></p>
+<small>Una captura de audio por motor; reutiliza la misma fuente en otras escenas. No añadas además el filtro antiguo. Los subtítulos caducan tras el silencio. No se envía audio a Internet.</small></section>
+<section><small id="audio-diagnostics">Esperando audio…</small><p><small id="details">Esperando métricas…</small></p></section>
+<script>
+document.getElementById('overlay-url').textContent=new URL('/overlay/original',location.href).href;
+let busy=false;async function tick(){if(busy)return;busy=true;try{const r=await fetch('/api/state',{signal:AbortSignal.timeout(1500)});const s=await r.json();
+for(const id of ['status','error','es','source'])document.getElementById(id).textContent=s[id]||'';
+document.getElementById('language').textContent=s.source_language==='und'?'detectando…':s.source_language;document.getElementById('source').style.color=s.subtitle_color;
+const m=s.metrics;document.getElementById('gpu').textContent=m.gpu_mean_percent==null?'—':m.gpu_mean_percent+' %';document.getElementById('gpu').className='value '+(m.gpu_within_target?'good':'bad');
+document.getElementById('audio-diagnostics').textContent=`Audio: ${m.audio_muted?'silenciado':(m.audio_input_db==null?'sin muestras':m.audio_input_db+' dBFS')} · Sin palabras nuevas durante ${m.asr_audio_seconds_since_text_change??0}s de audio · Parciales idénticos evitados: ${m.asr_duplicate_interims_skipped??0}. Un nivel de audio no confirma que haya voz reconocible.`;
+document.getElementById('ram').textContent=m.rss_mib==null?'—':m.rss_mib+' MiB';document.getElementById('latency').textContent=!s.translation_enabled?'Desactivada':(m.translation_ms==null?'Cargando…':m.translation_ms+' ms');
+document.getElementById('details').textContent=`Cola de audio: ${m.audio_queue_ms??'—'} ms · Desbordamientos: ${m.audio_drops??0} · VRAM global: ${m.gpu_memory_mib_global??'—'} MiB · Potencia global: ${m.gpu_power_watts??'—'} W · Hilos del runtime: ${m.cpu_threads_per_engine??'gestión propia'} · Remuestreo pendiente: ${m.resampler_pending_ms??'—'} ms`;
+}catch{document.getElementById('status').textContent='Motor desconectado';}finally{busy=false;}}setInterval(tick,1000);tick();
+</script></html>

@@ -1,0 +1,37 @@
+name: Verify
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff
+        with:
+          version: '0.12.13'
+          python-version: '3.12.14'
+      - run: uv venv --python 3.12.14
+      - run: uv pip install --python .venv/Scripts/python.exe --require-hashes -r requirements-bundle.lock
+      - run: uv pip install --python .venv/Scripts/python.exe pytest==9.1.1 ruff==0.17.0
+      - run: .venv/Scripts/python.exe -m pytest -q
+      - run: .venv/Scripts/python.exe -m ruff check engine tests tools installer
+      - run: .venv/Scripts/python.exe tools/audit_public.py
+      - run: tools/bootstrap_build.ps1 -WithoutInstaller
+  installer:
+    if: github.event_name == 'workflow_dispatch'
+    needs: tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff
+        with:
+          version: '0.12.13'
+          python-version: '3.12.14'
+      - run: tools/bootstrap_build.ps1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Windows-x64-Setup
+          path: dist/*Setup.exe
+          retention-days: 7
+          if-no-files-found: error
