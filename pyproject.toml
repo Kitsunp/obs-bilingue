@@ -1,6 +1,6 @@
 [project]
 name = "obs-bilingue"
-version = "0.4.0"
+version = "0.4.1"
 description = "Subtitulos multilingues locales para OBS con memoria acotada"
 requires-python = ">=3.12,<3.13"
 dependencies = [

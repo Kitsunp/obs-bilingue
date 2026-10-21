@@ -124,8 +124,12 @@ no instala controladores, CUDA Toolkit, servicios ni tareas de inicio.
 2. Consulta la API del controlador: se requiere CUDA 13.0 o superior y al menos
    un dispositivo accesible. La comprobación no carga los modelos.
 3. Compara cada archivo del destino con el SHA256 esperado para el componente.
-   Conserva los archivos correctos y copia los ausentes o diferentes.
-4. Descarga los modelos originales solo si faltan o no pasan su checksum.
+   Conserva los correctos. Busca copias idénticas en registros PEP 514 y rutas
+   explícitas de Python/CUDA/PATH, sin ejecutar ni modificar esas dependencias.
+4. Prepara copias privadas desde esas ubicaciones. Descarga únicamente los paquetes
+   Python o bibliotecas nativas incompletos; cada archivo comprimido tiene su hash
+   fijado dentro del EXE. Extrae en staging temporal y copia solo lo necesario al
+   destino. Los modelos originales se descargan si faltan o fallan su checksum.
 5. Verifica el manifiesto instalado. Valida la configuración en un archivo temporal,
    conserva opciones existentes y solo añade valores predeterminados ausentes.
 6. Publica `runtime.json` mediante reemplazo atómico cuando sus valores cambian.
@@ -135,6 +139,26 @@ El inventario de archivos distingue instalación compacta y completa. El checksu
 esperado forma parte de la clave de caché de comprobación: cambiar de componente
 no reutiliza una decisión basada en otro contenido. El registro del desinstalador
 puede actualizarse aunque no se sustituyan dependencias.
+
+El EXE es un bootstrap: las dependencias grandes no forman parte de su carga
+interna. El generador `tools/bootstrap_components.py` crea los grupos y sus
+inventarios; `tools/installer_checks.py` genera las entradas explícitas de Inno.
+`installer/reuse_dependencies.ps1` prepara archivos sin cambios globales y devuelve
+qué grupos están incompletos. La página de descargas verifica el hash del ZIP y la
+validación final comprueba cada archivo instalado. Una reparación parcial de un
+paquete puede descargar su ZIP completo; no significa que sobrescriba sus archivos
+ya correctos. Esto reduce la complejidad y las peticiones frente a miles de descargas
+de archivos Python individuales.
+
+La compatibilidad para reutilizar es deliberadamente exacta. No se deduce de que
+un paquete diga «más nuevo». Las copias privadas también evitan que desinstalar o
+actualizar el Python/Toolkit externos rompa el motor ya instalado. El controlador
+NVIDIA permanece como dependencia del sistema y se comprueba mediante su API.
+
+La identidad del editor se trata aparte de la integridad de las descargas. Esta
+versión no tiene una firma Authenticode confiable: SHA256 no reemplaza esa firma.
+Se ofrece un punto de integración para firmar instalador/desinstalador en builds
+del editor; no se instala un certificado autofirmado ni se desactiva SmartScreen.
 
 **Controlador, Toolkit y bibliotecas son conceptos diferentes.** Instalar CUDA
 Toolkit 13 no demuestra que el controlador lo soporte. Un controlador posterior

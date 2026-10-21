@@ -1,4 +1,34 @@
-# Alcance de la validación 0.4.0
+# Alcance de la validación 0.4.1
+
+El EXE pasa de **810536823 a 3990701 bytes** (aproximadamente **4 MB**, un 99,5 %
+menor). El tamaño corresponde al bootstrap, no al conjunto de modelos y bibliotecas.
+Sin reutilización local, los componentes compactos comprimidos suman 327395886 bytes
+y el modelo ASR 742090464 bytes. La traducción opcional añade 577376558 bytes de
+dependencias y 1133080448 bytes de pesos. Las cifras pueden cambiar en otra versión.
+
+Comprobaciones adicionales en Windows x64:
+
+- 110 tests Python, análisis estático y compilación nativa con advertencias como errores.
+- Instalación compacta limpia desde un servidor HTTP local de pruebas para los
+  componentes y desde Hugging Face para el modelo ASR; ampliación a traducción
+  con descarga del modelo original. Se usó una carpeta aislada con espacios.
+- Reinstalación con servidor de dependencias inaccesible: éxito, 2880 archivos
+  conservados sin reescritura, configuración preservada, controlador y ocho
+  variables globales de entorno sin cambios.
+- Descarga alterada de un componente: rechazada por hash en `PrepareToInstall`,
+  salida 7 y sin instalar el archivo de prueba ausente.
+- Reparación del paquete NumPy con un archivo ausente: una sola petición de archivo
+  comprimido al servidor; no volvió a descargar todos los runtimes ni los modelos.
+- Carga ASR CUDA y generación funcional del traductor usando el Python instalado y
+  PATH reducido a System32, sin el entorno de desarrollo en la búsqueda de DLL.
+- El estado Authenticode del instalador publicado es `NotSigned`. Se documenta
+  SmartScreen; no se ha probado la integración con un certificado de editor confiable.
+
+El servidor local solo sustituye el origen de los componentes durante la prueba;
+el EXE publicado fija URLs HTTPS de GitHub y de las revisiones de Hugging Face.
+Los hashes de ZIP y archivos siguen siendo obligatorios en ambas construcciones.
+
+## Validación previa 0.4.0
 
 Esta versión cambia el empaquetado y la instalación. Conserva los pesos originales
 de Nemotron; no se presenta como una mejora del reconocimiento de canciones.

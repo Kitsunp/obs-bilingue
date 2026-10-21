@@ -1,4 +1,4 @@
-param([switch]$WithoutInstaller)
+param([switch]$WithoutInstaller, [string]$SigningCommand)
 $ErrorActionPreference = 'Stop'
 $captionRoot = Split-Path -Parent $PSScriptRoot
 $captionTools = Join-Path $captionRoot '.build\tools'
@@ -52,12 +52,20 @@ uv python install 3.12.14
 if ($LASTEXITCODE) { throw 'Python preparation failed' }
 $captionPython = (uv python find 3.12.14).Trim()
 & $captionPython (Join-Path $PSScriptRoot 'build_installer.py') --python-root (Split-Path -Parent $captionPython)
-if ($LASTEXITCODE) { throw 'Offline payload build failed' }
-& (Join-Path $captionInno 'ISCC.exe') ('/DPayload=' + (Join-Path $captionRoot '.build\payload')) `
+if ($LASTEXITCODE) { throw 'Component payload build failed' }
+$captionSigning = @()
+if ($SigningCommand) { $captionSigning = @('/DPublisherSigning', ('/Scaptionpublisher=' + $SigningCommand)) }
+& (Join-Path $captionInno 'ISCC.exe') @captionSigning ('/DPayload=' + (Join-Path $captionRoot '.build\payload')) `
     (Join-Path $captionRoot 'installer\obs-bilingue.iss')
 if ($LASTEXITCODE) { throw 'Installer compilation failed' }
-$captionInstaller = Get-Item -LiteralPath (Join-Path $captionRoot 'dist\OBS-Bilingue-0.4.0-Windows-x64-Setup.exe')
-if ($captionInstaller.Length -ge 2147483648) { throw 'Installer exceeds GitHub release asset limit' }
-$captionDigest = (Get-FileHash -LiteralPath $captionInstaller.FullName -Algorithm SHA256).Hash.ToLower()
+$captionInstaller = Get-Item -LiteralPath (Join-Path $captionRoot 'dist\OBS-Bilingue-0.4.1-Windows-x64-Setup.exe')
+if ($captionInstaller.Length -ge 20MB) { throw 'Bootstrap unexpectedly includes large dependencies' }
+if ($SigningCommand -and (Get-AuthenticodeSignature -LiteralPath $captionInstaller.FullName).Status -ne 'Valid') {
+    throw 'Publisher signing was requested but the installer signature is not valid'
+}
+$captionAssets = @($captionInstaller) + @(Get-ChildItem -LiteralPath (Join-Path $captionRoot 'dist\components') -Filter '*.zip')
+$captionChecksums = foreach ($captionAsset in $captionAssets) {
+    (Get-FileHash -LiteralPath $captionAsset.FullName -Algorithm SHA256).Hash.ToLower() + '  ' + $captionAsset.Name
+}
 [System.IO.File]::WriteAllText((Join-Path $captionRoot 'dist\SHA256SUMS.txt'),
-    ($captionDigest + '  ' + $captionInstaller.Name + "`n"), [System.Text.UTF8Encoding]::new($false))
+    (($captionChecksums -join "`n") + "`n"), [System.Text.UTF8Encoding]::new($false))

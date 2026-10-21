@@ -8,7 +8,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from installer_checks import write_checks
+from bootstrap_components import VERSION, prepare
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -111,8 +111,8 @@ def main(args):
     core = {path: digest for path, digest in files.items()
             if not path.startswith("runtime/llama/") and path != "models/Hy-MT2-1.8B-Q4_K_M.gguf"}
     for name, included in (("bundle-manifest.json", files), ("bundle-core-manifest.json", core)):
-        (app / name).write_text(json.dumps({"version": "0.4.0", "files": included}, indent=2))
-    write_checks(payload)
+        (app / name).write_text(json.dumps({"version": VERSION, "files": included}, indent=2))
+    prepare(payload, ROOT / "dist/components")
     print(json.dumps({"files": len(files), "bytes": sum(p.stat().st_size for p in app.rglob("*")
                                                          if p.is_file()), "payload": str(payload)}))
 

@@ -4,7 +4,7 @@ Fuente nativa para **subtitular voz en directo en OBS Studio**. Reconoce el idio
 automáticamente, permite colores por idioma y ofrece traducción opcional al español.
 El audio y el texto se procesan localmente. No genera voz.
 
-[**Descargar instalador para Windows x64**](https://github.com/Kitsunp/obs-bilingue/releases/download/v0.4.0/OBS-Bilingue-0.4.0-Windows-x64-Setup.exe)
+[**Descargar instalador para Windows x64**](https://github.com/Kitsunp/obs-bilingue/releases/download/v0.4.1/OBS-Bilingue-0.4.1-Windows-x64-Setup.exe)
 
 **Versión preliminar para Windows x64 y GPU NVIDIA.** El canto, las expresiones
 muy alargadas, el ruido y los cambios rápidos de idioma todavía pueden producir
@@ -13,12 +13,16 @@ certificado la estabilidad durante varias horas.
 
 ## Instalar
 
-1. Descarga **OBS-Bilingue-0.4.0-Windows-x64-Setup.exe** desde
-   [Releases](https://github.com/Kitsunp/obs-bilingue/releases/tag/v0.4.0).
-2. Cierra OBS, abre el instalador y pulsa **Instalar**. Incluye Python, dependencias
-   y runtimes; descarga automáticamente los modelos originales y verifica sus SHA-256.
-   Requiere internet durante la instalación; no requiere instalar Python, uv ni CUDA Toolkit.
-   Windows puede pedir permiso de administrador. El instalador no tiene firma comercial.
+1. Descarga **OBS-Bilingue-0.4.1-Windows-x64-Setup.exe** desde
+   [Releases](https://github.com/Kitsunp/obs-bilingue/releases/tag/v0.4.1).
+2. Cierra OBS, abre el instalador y pulsa **Instalar**. El EXE pequeño comprueba lo
+   instalado y descarga solo los componentes incompletos, con SHA-256. Los modelos
+   ocupan cientos de MB y no van dentro del EXE. La traducción es opcional.
+   No requiere instalar Python, uv ni CUDA Toolkit. No modifica el Python, CUDA,
+   los controladores ni el PATH del sistema.
+   Windows puede pedir permiso de administrador. Esta versión no tiene firma digital
+   de editor y puede mostrar SmartScreen al ejecutarla; consulta [la explicación y
+   verificación de la descarga](docs/INSTALL.md#smartscreen-y-firma-digital).
 3. Abre OBS y añade **Fuentes → + → Bilingue - Subtitulos de voz en directo**.
    En sus propiedades elige el micrófono, escritorio o fuente multimedia que quieres escuchar.
 

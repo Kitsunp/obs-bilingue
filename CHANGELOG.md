@@ -1,3 +1,14 @@
+# 0.4.1
+
+- Small online bootstrap: Python packages and native libraries are separate,
+  checksummed downloads. Original model weights remain unchanged.
+- Read-only discovery of compatible local dependency files through PEP 514,
+  PATH, CUDA_PATH and System32; copies are private to this plugin.
+- Reinstallation preserves correct files and fetches only incomplete components.
+- Subtitles-only installation is the default; translation remains optional.
+- Documented unsigned publisher status and SmartScreen behavior. Added an optional
+  publisher-signing build hook without changing Windows security settings.
+
 # 0.4.0
 
 - Instalador Windows con Python y runtimes propios, independiente de la carpeta

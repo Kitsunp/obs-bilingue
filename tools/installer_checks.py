@@ -10,7 +10,7 @@ def digest(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def write_checks(payload):
+def write_checks(payload, dependencies=None):
     app = payload / "data/app"
     checks = configparser.ConfigParser(interpolation=None)
     checks.optionxform = str
@@ -26,16 +26,27 @@ def write_checks(payload):
         checks.write(stream)
     lines = []
 
+    external = {"data/app/" + name: (group["id"], spec["size"])
+                for group in (dependencies or {}).get("groups", []) for name, spec in group["files"].items()}
+
     def entry(source, destination, relative, expected, component, condition=""):
         if ".." in Path(relative).parts or Path(relative).is_absolute():
             raise ValueError("Unsafe generated installer destination")
+        dependency = external.get(relative.replace("\\", "/"))
         relative = relative.replace("/", "\\")
         quote = relative.replace("'", "''")
         predicate = f"NeedTargetFile('{quote}', '{expected}')"
         if condition:
             predicate = condition + " and " + predicate
-        lines.append(f'Source: "{{#Payload}}\\{source}"; DestDir: "{{app}}\\{destination}"; '
-                     f'Flags: ignoreversion; Components: {component}; Check: {predicate}')
+        if dependency:
+            group, size = dependency
+            source = "{tmp}\\dependencies\\" + group + "\\" + relative.removeprefix("data\\app\\")
+            flags = f"external ignoreversion; ExternalSize: {size}"
+        else:
+            source = "{#Payload}\\" + source
+            flags = "ignoreversion"
+        lines.append(f'Source: "{source}"; DestDir: "{{app}}\\{destination}"; '
+                     f'Flags: {flags}; Components: {component}; Check: {predicate}')
 
     for relative, source in (("obs-bilingue.dll", "obs-bilingue.dll"),
                              ("bin/64bit/obs-bilingue.dll", "obs-bilingue.dll"),
@@ -61,6 +72,13 @@ def write_checks(payload):
                      f'DestName: "bundle-manifest.json"; Flags: ignoreversion; Components: {component}; '
                      f'Check: {predicate}')
     (payload / "files.iss").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if dependencies:
+        code = ["procedure PrepareDependencyDownloads;", "begin"]
+        for group in dependencies["groups"]:
+            code.append(f"  if WizardIsComponentSelected('{group['component']}') then")
+            code.append(f"    StageDependency('{group['id']}', '{group['archive']}', '{group['sha256']}');")
+        code.append("end;")
+        (payload / "downloads.iss").write_text("\n".join(code) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

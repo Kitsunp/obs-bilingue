@@ -1,8 +1,10 @@
 # Instalación en Windows
 
 La opción recomendada es el instalador de [Releases](https://github.com/Kitsunp/obs-bilingue/releases).
-Incluye Python y los runtimes, y descarga automáticamente los pesos originales
-de Hugging Face comprobando SHA256. Requiere internet durante la instalación. No requiere
+El EXE contiene la fuente y el motor ligero; comprueba las dependencias existentes
+y descarga los componentes incompletos, incluidos los pesos originales, comprobando
+SHA256. Una primera instalación sigue necesitando descargas grandes: un EXE pequeño
+no reduce el tamaño de los modelos. Requiere internet cuando falten componentes. No requiere
 Python, pip, uv ni CUDA Toolkit previamente instalados. Sí requiere un controlador
 NVIDIA compatible con el runtime incluido, OBS x64 y su fuente Navegador.
 El instalador comprueba que el controlador soporte CUDA 13 o superior. No instala
@@ -12,6 +14,48 @@ Cierra OBS antes de instalar o actualizar. El instalador no lo cierra ni cambia
 escenas, perfiles, cuentas o servicios de emisión. Al terminar abre OBS y añade la
 fuente **Bilingue - Subtitulos de voz en directo**. El audio se elige en propiedades.
 No se inicia un servicio de Windows ni una tarea al encender el equipo.
+
+## Reutilización de dependencias
+
+Primero comprueba cada archivo de la carpeta del plugin. Los archivos correctos se
+conservan sin reescribirlos. Busca también copias locales mediante registros Python
+PEP 514, las ubicaciones explícitas de PATH y CUDA_PATH, y System32 para bibliotecas
+nativas. No recorre discos, carpetas personales ni cachés de navegadores.
+
+Solo acepta archivos con el mismo SHA256 de la distribución probada. Una versión
+aparentemente más nueva no demuestra compatibilidad: Python 3.13 no reemplaza las
+extensiones CPython 3.12 y una DLL CUDA 14 no reemplaza automáticamente CUDA 13.
+Las copias externas compatibles se leen y copian a la carpeta privada del plugin;
+no se ejecuta ni modifica el Python externo, sus paquetes o el Toolkit.
+
+Las descargas se dividen por paquete Python y biblioteca nativa, no por un único
+runtime gigante. Si un paquete está incompleto se descarga ese paquete; sus archivos
+correctos instalados se conservan. La extracción ocurre en una carpeta temporal,
+y se verifica todo antes de publicar las rutas del motor. Reinstalar con todas las
+dependencias correctas no requiere volver a descargarlas.
+
+## SmartScreen y firma digital
+
+El aviso **«Windows protegió su PC» al ejecutar** puede aparecer porque este
+instalador no tiene firma Authenticode de editor ni reputación establecida. La
+captura de ese aviso por sí sola no determina si un archivo es seguro o malicioso.
+Esta distribución no desactiva SmartScreen, Defender, Smart App Control ni añade
+certificados de confianza al equipo.
+
+Comprueba que el archivo provenga de este repositorio y compara su hash con
+`SHA256SUMS.txt` de la misma versión. Puedes inspeccionarlo sin ejecutarlo:
+
+```powershell
+Get-FileHash -Algorithm SHA256 -LiteralPath '.\OBS-Bilingue-0.4.1-Windows-x64-Setup.exe'
+Get-AuthenticodeSignature -LiteralPath '.\OBS-Bilingue-0.4.1-Windows-x64-Setup.exe'
+```
+
+La firma de esta versión se informa como `NotSigned`. El checksum sirve para
+comprobar el archivo frente al publicado; no sustituye una identidad de editor
+verificada ni garantiza ausencia de vulnerabilidades. No se ofrece una promesa de
+eliminar ese aviso: se necesita una identidad/certificado confiable y aun un archivo
+firmado nuevo puede mostrarlo mientras gana reputación. Un certificado autofirmado
+no resuelve este problema. Véase la [documentación oficial de Microsoft](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
 
 La ruta normal se deriva de ProgramData. El instalador genera `data/runtime.json`
 con la ruta del motor y de su Python local. Este archivo pertenece al equipo de

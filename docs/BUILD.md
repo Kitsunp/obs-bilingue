@@ -28,9 +28,12 @@ tools/bootstrap_build.ps1
 The script fetches pinned Zig 0.15.2, an exact OBS header commit and signed Inno
 Setup 6.7.3. Downloads are checked before execution. It prepares Python 3.12.14,
 the fully pinned Python packages and the resources in `installer/resources.json`,
-then compiles the installer into `dist/`. Python and runtimes are embedded; original
-model weights are downloaded automatically during installation, with their pinned
-SHA256. This keeps the EXE below GitHub's per-asset size limit. Runtime use is local.
+then compiles the small bootstrap into `dist/`. `tools/bootstrap_components.py`
+splits Python into interpreter/package archives and native libraries into separate
+components in `dist/components/`. Upload **all** these assets beside the EXE to the
+same versioned GitHub release (flat asset names). Missing component archives and
+original model weights are downloaded during installation, with pinned SHA256.
+Runtime use is local. The bootstrap build rejects an EXE of 20 MiB or larger.
 
 `tools/bootstrap_build.ps1 -WithoutInstaller` only builds the native plugin and
 test host. `native/build.ps1` also accepts explicit Zig and OBS header locations.
@@ -49,6 +52,29 @@ Installation tests must inspect the manifest, file timestamps and log as well as
 the exit code: a post-install verification failure returns custom exit code 90.
 Preflight inspects the driver and running processes without installing system
 dependencies. Compatibility >= CUDA 13 means the driver API, not the Toolkit version.
+
+`installer/reuse_dependencies.ps1` reads PEP 514 registrations and explicit local
+PATH/CUDA_PATH locations; it never executes discovered Python interpreters. Exact
+matching binaries/packages are copied into private staging. The Inno download page
+fetches only incomplete groups, extracts into temporary staging and uses explicit
+external file entries so uninstallation remains scoped to this product. A single
+missing package file may require downloading its package archive; correct installed
+files are still not rewritten. A repair test should count HTTP requests and compare
+file timestamps, not infer reuse from a zero exit code.
+
+## Publisher signing
+
+Unsigned builds are explicitly documented as such. With an established trusted
+signing identity, pass `-SigningCommand` to `bootstrap_build.ps1`. This configures
+Inno's `captionpublisher` signing tool for the installer **and uninstaller**. Its
+command must include Inno's `$f` file placeholder and use SHA256 plus an RFC3161
+timestamp. Keep credentials outside the repository/command; use a certificate
+store or a signing service. Requested signing must validate as Authenticode `Valid`
+or the build fails. Generate checksums **after** signing. No self-signed root is
+installed and no Windows security settings are changed. This hook does not supply
+a certificate and has not been validated with a publisher identity for this release.
+See [Inno signing](https://jrsoftware.org/ishelp/topic_setup_signtool.htm) and
+[Microsoft SmartScreen reputation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
 
 GitHub Actions tests source changes and can build the installer via manual dispatch.
 The CPU CI runner does not establish GPU compatibility or recognition quality.
