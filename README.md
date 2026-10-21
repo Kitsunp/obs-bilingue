@@ -63,6 +63,7 @@ El código publicado no incluye datos de las pruebas locales ni su historial de 
 
 [Compilación e instalador reproducible](docs/BUILD.md) ·
 [Arquitectura y privacidad](docs/ARCHITECTURE.md) ·
+[Ingeniería y decisiones de diseño](docs/ENGINEERING.md) ·
 [Licencias de terceros](THIRD_PARTY_NOTICES.md)
 
 El código del proyecto se distribuye bajo **GPL-2.0-or-later**. Los modelos,

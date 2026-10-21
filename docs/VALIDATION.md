@@ -5,7 +5,7 @@ de Nemotron; no se presenta como una mejora del reconocimiento de canciones.
 
 Comprobaciones realizadas en Windows x64:
 
-- 104 pruebas Python y comprobación estática de engine, tests, tools e installer.
+- 108 pruebas Python y comprobación estática de engine, tests, tools e installer.
 - Compilación nativa con advertencias tratadas como errores, usando cabeceras de
   OBS 32.2.2 y rutas de compilación remapeadas.
 - Instalación real en una carpeta aislada con espacios, generación de las rutas
@@ -21,7 +21,16 @@ Comprobaciones realizadas en Windows x64:
   instaló el traductor ni sus bibliotecas.
 - La actualización añadió la traducción mediante descarga verificada, conservó
   los valores del motor y no volvió a descargar o reemplazar el ASR ya válido.
-- El instalador final ocupa 811579224 bytes, por debajo del límite por archivo
+- Una reinstalación con un archivo de prueba dañado conservó 2911 archivos que
+  coincidían con sus hashes y reparó el archivo modificado. No reescribió la
+  configuración ni los metadatos locales correctos.
+- La comprobación del controlador pasó en el equipo de prueba. El archivo del
+  controlador y ocho variables globales de entorno de usuario/sistema (PATH,
+  CUDA_PATH, PYTHONHOME, PYTHONPATH) permanecieron sin cambios.
+- Con configuración inválida, la instalación devolvió 90, conservó ese archivo y
+  no activó metadatos nuevos. No se interpretó un mensaje de éxito como evidencia
+  suficiente para aceptar una instalación.
+- El instalador final ocupa 810536823 bytes, por debajo del límite por archivo
   de GitHub Releases. Su SHA256 acompaña la descarga.
 
 La revisión del código y del contenido publicado excluye rutas personales,

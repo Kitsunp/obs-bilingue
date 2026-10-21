@@ -10,4 +10,4 @@ def test_installer_downloads_the_same_pinned_models_as_the_payload_builder():
         if name.endswith(".gguf"):
             assert spec["url"] in script
             assert spec["sha256"] in script
-    assert 'Excludes: "runtime\\llama\\*,models\\*,' in script
+    assert '#include Payload + "/files.iss"' in script

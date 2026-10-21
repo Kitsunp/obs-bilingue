@@ -43,6 +43,13 @@ does not require translation files. The bytecode cache is not distributed or wri
 by the managed launch path. Fully pinned downloads and package hashes make inputs
 auditable; this is not a claim of bit-identical EXE builds across hosts.
 
+`tools/installer_checks.py` generates explicit per-destination hash checks for the
+Inno file entries. These avoid copying correct files on repair or reinstallation.
+Installation tests must inspect the manifest, file timestamps and log as well as
+the exit code: a post-install verification failure returns custom exit code 90.
+Preflight inspects the driver and running processes without installing system
+dependencies. Compatibility >= CUDA 13 means the driver API, not the Toolkit version.
+
 GitHub Actions tests source changes and can build the installer via manual dispatch.
 The CPU CI runner does not establish GPU compatibility or recognition quality.
 GPU/source tests must use the installed payload and actual libobs capture. The

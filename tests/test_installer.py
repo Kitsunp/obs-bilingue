@@ -50,6 +50,25 @@ def test_installer_rejects_manifest_path_escape(tmp_path):
         configure(root)
 
 
+def test_reconfigure_does_not_rewrite_valid_existing_config_or_runtime(tmp_path):
+    root, app = payload(tmp_path)
+    configure(root)
+    files = [app / "config.json", root / "data/runtime.json"]
+    before = [(file.read_bytes(), file.stat().st_mtime_ns) for file in files]
+    configure(root)
+    assert [(file.read_bytes(), file.stat().st_mtime_ns) for file in files] == before
+
+
+def test_bad_existing_config_is_not_replaced_with_defaults(tmp_path):
+    root, app = payload(tmp_path)
+    file = app / "config.json"
+    file.write_bytes(b"{invalid-config")
+    with pytest.raises(ValueError):
+        configure(root)
+    assert file.read_bytes() == b"{invalid-config"
+    assert not (root / "data/runtime.json").exists()
+
+
 def test_publication_audit_detects_private_files_without_printing_contents(tmp_path):
     (tmp_path / "runtime.json").write_text('{"root":"local-only"}')
     assert scan(tmp_path) == [("runtime.json", "local-only file")]

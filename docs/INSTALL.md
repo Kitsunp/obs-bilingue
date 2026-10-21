@@ -5,6 +5,8 @@ Incluye Python y los runtimes, y descarga automáticamente los pesos originales
 de Hugging Face comprobando SHA256. Requiere internet durante la instalación. No requiere
 Python, pip, uv ni CUDA Toolkit previamente instalados. Sí requiere un controlador
 NVIDIA compatible con el runtime incluido, OBS x64 y su fuente Navegador.
+El instalador comprueba que el controlador soporte CUDA 13 o superior. No instala
+ni reemplaza controladores o CUDA Toolkit y no modifica el Python ni el PATH global.
 
 Cierra OBS antes de instalar o actualizar. El instalador no lo cierra ni cambia
 escenas, perfiles, cuentas o servicios de emisión. Al terminar abre OBS y añade la
@@ -29,6 +31,10 @@ Consulta la [guía oficial de ubicaciones](https://obsproject.com/kb/legacy-plug
 Vuelve a ejecutar el instalador con OBS cerrado para actualizar. Los valores de
 configuración del motor existentes se conservan y se añaden los nuevos valores
 predeterminados cuando faltan. Las propiedades de las fuentes pertenecen a OBS.
+Los archivos que ya pasan el SHA256 esperado no se sobrescriben. Se sustituyen
+solo archivos ausentes o diferentes de esta distribución, dentro de su carpeta.
+El desinstalador mantiene su propio registro de archivos. Una configuración
+inválida produce un error; no se borra silenciosamente para instalar valores nuevos.
 
 Se puede desinstalar desde Aplicaciones de Windows o mediante el desinstalador
 de la carpeta del plugin. Cierra OBS primero. La desinstalación retira los archivos
