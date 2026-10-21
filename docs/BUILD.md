@@ -69,10 +69,18 @@ signing identity, pass `-SigningCommand` to `bootstrap_build.ps1`. This configur
 Inno's `captionpublisher` signing tool for the installer **and uninstaller**. Its
 command must include Inno's `$f` file placeholder and use SHA256 plus an RFC3161
 timestamp. Keep credentials outside the repository/command; use a certificate
-store or a signing service. Requested signing must validate as Authenticode `Valid`
-or the build fails. Generate checksums **after** signing. No self-signed root is
+store or a signing service. Requested signing must pass `tools/verify_signature.ps1`:
+embedded Authenticode `Valid`, the exact expected publisher, code-signing EKU,
+timestamp and reviewed signer metadata. The default expected publisher
+is SignPath Foundation, subject to acceptance; it is not a claim of an existing
+certificate. A different approved organizational identity can be specified with
+`-SigningPublisher`. Generate checksums **after** signing. No self-signed root is
 installed and no Windows security settings are changed. This hook does not supply
 a certificate and has not been validated with a publisher identity for this release.
+See the [code signing policy and pending free-provider application](SIGNING.md).
+Use `-RequireSigning` for a signing build: without an approved `-SigningCommand`
+the build stops before downloading tools or producing an unsigned installer. Normal
+unsigned development builds remain supported and must be labelled as unsigned.
 See [Inno signing](https://jrsoftware.org/ishelp/topic_setup_signtool.htm) and
 [Microsoft SmartScreen reputation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
 

@@ -1,5 +1,9 @@
-param([switch]$WithoutInstaller, [string]$SigningCommand)
+param([switch]$WithoutInstaller, [switch]$RequireSigning, [string]$SigningCommand,
+      [string]$SigningPublisher = 'SignPath Foundation')
 $ErrorActionPreference = 'Stop'
+if ($RequireSigning -and (!$SigningCommand -or $WithoutInstaller)) {
+    throw 'Signed build requires an approved signing command and an installer build. No signing account is configured automatically.'
+}
 $captionRoot = Split-Path -Parent $PSScriptRoot
 $captionTools = Join-Path $captionRoot '.build\tools'
 New-Item -ItemType Directory -Force -Path $captionTools | Out-Null
@@ -60,8 +64,11 @@ if ($SigningCommand) { $captionSigning = @('/DPublisherSigning', ('/Scaptionpubl
 if ($LASTEXITCODE) { throw 'Installer compilation failed' }
 $captionInstaller = Get-Item -LiteralPath (Join-Path $captionRoot 'dist\OBS-Bilingue-0.4.1-Windows-x64-Setup.exe')
 if ($captionInstaller.Length -ge 20MB) { throw 'Bootstrap unexpectedly includes large dependencies' }
-if ($SigningCommand -and (Get-AuthenticodeSignature -LiteralPath $captionInstaller.FullName).Status -ne 'Valid') {
-    throw 'Publisher signing was requested but the installer signature is not valid'
+if ($SigningCommand) {
+    & (Join-Path $PSScriptRoot 'verify_signature.ps1') -Path $captionInstaller.FullName `
+        -ExpectedPublisher $SigningPublisher -ExpectedProduct ('OBS Biling' + [char]0xFC + 'e') `
+        -ExpectedVersion '0.4.1'
+    if ($LASTEXITCODE) { throw 'Signed release failed publisher, timestamp or metadata verification' }
 }
 $captionAssets = @($captionInstaller) + @(Get-ChildItem -LiteralPath (Join-Path $captionRoot 'dist\components') -Filter '*.zip')
 $captionChecksums = foreach ($captionAsset in $captionAssets) {
