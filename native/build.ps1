@@ -24,14 +24,19 @@ if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear la libreria de importacion OB
     (Join-Path $PSScriptRoot 'subtitle-source.c') `
     (Join-Path $PSScriptRoot 'program-audio.c') `
     (Join-Path $PSScriptRoot 'scene-audio.c') `
+    (Join-Path $PSScriptRoot 'routing-controls.c') `
+    (Join-Path $PSScriptRoot 'source-audio.c') `
+    (Join-Path $PSScriptRoot 'source-choice.c') `
     (Join-Path $PSScriptRoot 'engine-runtime.c') (Join-Path $PSScriptRoot 'language-rules.c') `
     (Join-Path $PSScriptRoot 'style-preview.c') `
-    (Join-Path $captionBuild 'obs.lib') -lws2_32 -lshell32 -luser32 `
+    (Join-Path $captionBuild 'obs.lib') -lws2_32 -lshell32 -luser32 -lole32 `
     -o (Join-Path $captionBuild 'obs-bilingue.dll')
 if ($LASTEXITCODE -ne 0) { throw 'Fallo la compilacion del plugin' }
 Write-Host 'Plugin compilado: build\obs-bilingue.dll'
 & $Zig cc -O2 @captionDebugFlags "-ffile-prefix-map=$captionRoot=." "-ffile-prefix-map=$ObsHeaders=obs-headers" -Wall -Wextra -Werror -Wno-deprecated-declarations -std=c11 -target x86_64-windows-gnu `
     "-I$ObsHeaders" "-I$captionBuild" (Join-Path $PSScriptRoot 'obs-test-host.c') `
+    (Join-Path $PSScriptRoot 'routing-test.c') `
+    (Join-Path $PSScriptRoot 'source-audio-test.c') `
     (Join-Path $captionBuild 'obs.lib') -o (Join-Path $captionBuild 'obs-test-host.exe')
 if ($LASTEXITCODE -ne 0) { throw 'Fallo la compilacion del host de pruebas OBS' }
 $captionData = Join-Path $captionBuild 'data'

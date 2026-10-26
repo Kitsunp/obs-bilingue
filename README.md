@@ -6,11 +6,11 @@ El audio y el texto se procesan localmente. No genera voz.
 
 [**Descargar instalador para Windows x64**](https://github.com/Kitsunp/obs-bilingue/releases/download/v0.4.1/OBS-Bilingue-0.4.1-Windows-x64-Setup.exe)
 
-[**Actualizar una instalación existente a 0.4.3: audio aislado por escena**](https://github.com/Kitsunp/obs-bilingue/releases/download/v0.4.3/OBS-Bilingue-0.4.3-Windows-x64-Update.exe).
+[**Actualizar una instalación existente a 0.4.4: audio de la fuente y atajos de micrófono**](https://github.com/Kitsunp/obs-bilingue/releases/download/v0.4.4/OBS-Bilingue-0.4.4-Windows-x64-Update.exe).
 Esta actualización pequeña solo sustituye el plugin nativo. Conserva el motor, los
 modelos y la configuración. Cierra OBS antes de ejecutarla; el actualizador bloquea
 la instalación si OBS sigue abierto y no cierra procesos automáticamente.
-Para una instalación nueva, instala primero 0.4.1 y después aplica 0.4.3.
+Para una instalación nueva, instala primero 0.4.1 y después aplica 0.4.4.
 
 **Versión preliminar para Windows x64 y GPU NVIDIA.** El canto, las expresiones
 muy alargadas, el ruido y los cambios rápidos de idioma todavía pueden producir
@@ -30,11 +30,12 @@ certificado la estabilidad durante varias horas.
    de editor y puede mostrar SmartScreen al ejecutarla; consulta [la explicación y
    verificación de la descarga](docs/INSTALL.md#smartscreen-y-firma-digital).
 3. Abre OBS y añade **Fuentes → + → Bilingue - Subtitulos de voz en directo**.
-   En sus propiedades elige **Escena: nombre (solo sus fuentes)** para subtitular
+   En sus propiedades elige una fuente por su nombre normal de OBS para subtitular
+   solo su audio. Si eliges una escena, se subtitulan
    únicamente las entradas de audio visibles de esa escena, incluidos grupos y escenas
    anidadas. Así puedes subtitular el vídeo y dejar fuera Discord y los micrófonos globales.
-   **Mezcla del directo de OBS (escenas, microfono y escritorio)** escucha toda la mezcla
-   de la pista elegida, incluidas las entradas globales.
+   Las selecciones guardadas de **Mezcla completa de OBS** siguen escuchando la pista
+   elegida, incluidas las entradas globales.
    También puedes elegir un micrófono, escritorio o fuente multimedia individual.
 
 La mezcla respeta los silencios, volúmenes y pistas de OBS. No equivale al audio de
@@ -42,15 +43,34 @@ una sola escena: incluye las fuentes globales que llegan a la pista elegida. Con
 **Pista de mezcla OBS = 0**, sigue la pista principal del directo activo; si no hay
 directo, la de la grabación activa; sin ambos, usa la pista 1. Puedes fijar una pista
 entre 1 y 6. Las fuentes configuradas antes de actualizar conservan su elección;
-cambia esa propiedad para activar la captura de la mezcla. Solo se capturan fuentes
+usa una fuente concreta para aislarla. En el modo de mezcla solo se capturan fuentes
 que OBS ya esté procesando y enviando a esa pista.
 
 El aislamiento por escena funciona con fuentes de audio OBS: por ejemplo, Multimedia,
 Navegador con audio controlado por OBS o Captura de audio de aplicación. Una captura
-de ventana/pantalla solo aporta imagen. Si añades Audio del escritorio a la escena,
+de pantalla solo aporta imagen; para una ventana sin audio nativo, selecciona esa
+ventana directamente para usar el adaptador de audio descrito más abajo.
+Si añades Audio del escritorio a la escena,
 esa única entrada puede contener varios programas y el plugin los recibirá juntos.
 Una escena seleccionada que no esté activa en el programa queda en silencio. Véase
 [el funcionamiento y las pruebas del aislamiento](docs/SCENE_AUDIO.md).
+
+Para alternar rápidamente con tu voz, selecciona **Micrófono para los atajos** en
+las propiedades de subtítulos. Si hay un único micrófono global de OBS se propone
+automáticamente. En **OBS → Ajustes → Atajos**, asigna **Bilingue: alternar microfono /
+fuente elegida**. Un toque pasa al micrófono y el siguiente detecta la fuente visible
+en programa, priorizando la ventana capturada en primer plano o tu fuente elegida.
+La selección queda fija aunque cambies de foco o pantalla; si sale de programa,
+vuelve al micrófono disponible. Con varias candidatas ambiguas mantiene la entrada.
+Los atajos solo cambian qué audio se subtitula. Usa **Añadir existente** para
+reutilizar una sola fuente de subtítulos en tus escenas; ocultarla mantiene el
+procesamiento desactivado. Los dispositivos que emiten teclas pueden usar el mismo
+atajo. [Detalles, límites y pruebas](docs/SOURCE_ROUTING.md).
+
+Una captura de ventana/juego sin audio nativo usa una captura privada del audio de
+esa aplicación para los subtítulos, sin agregarlo al directo. Varias ventanas del
+mismo proceso pueden compartir audio. Para una fuente **Navegador**, activa
+**Controlar el audio a través de OBS** en sus propiedades para recibir su audio.
 
 Mostrar la fuente inicia el motor; ocultarla desconecta la captura y libera los
 procesos administrados tras unos segundos. Se puede probar sin emitir ni grabar.

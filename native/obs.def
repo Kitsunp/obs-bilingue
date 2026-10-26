@@ -130,3 +130,29 @@ EXPORTS
     obs_source_get_audio_mix
     obs_scene_add_group
     obs_sceneitem_remove
+    obs_transition_get_active_source
+    obs_hotkey_register_source
+    obs_hotkey_unregister
+    obs_enum_hotkeys
+    obs_hotkey_get_name
+    obs_hotkey_enable_callback_rerouting
+    obs_hotkey_trigger_routed_callback
+    obs_get_latest_input_type_id
+    obs_source_get_proc_handler
+    proc_handler_call
+    calldata_get_data
+    calldata_get_string
+    obs_source_showing
+    obs_source_set_monitoring_type
+    obs_source_inc_active
+    obs_source_dec_active
+    ms_get_window_title
+    ms_get_window_class
+    ms_get_window_exe
+    ms_build_window_strings
+    proc_handler_add
+    calldata_set_data
+    obs_source_output_audio
+    obs_source_get_audio_mixers
+    obs_source_get_monitoring_type
+    obs_obj_is_private

@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include "caption-transport.h"
 #include "language-rules.h"
+#include "source-audio.h"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_AUTHOR("OBS Bilingue")
@@ -454,6 +455,7 @@ MODULE_EXPORT bool obs_module_load(void)
     caption_load_engine_config();
     WSADATA data;
     if (WSAStartup(MAKEWORD(2, 2), &data)) return false;
+    caption_input_initialize();
     struct obs_source_info info = {0};
     info.id = "obs_bilingue_filter";
     info.type = OBS_SOURCE_TYPE_FILTER;
@@ -467,7 +469,7 @@ MODULE_EXPORT bool obs_module_load(void)
     info.filter_audio = filter_audio;
     obs_register_source(&info);
     caption_register_source();
-    blog(LOG_INFO, "[Bilingue] Loaded 0.4.3; isolated scene audio capture; automatic visibility lifecycle");
+    blog(LOG_INFO, "[Bilingue] Loaded 0.4.4; isolated source audio and microphone routing hotkeys");
     return true;
 }
-MODULE_EXPORT void obs_module_unload(void) { WSACleanup(); }
+MODULE_EXPORT void obs_module_unload(void) { caption_input_shutdown(); WSACleanup(); }

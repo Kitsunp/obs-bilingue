@@ -8,6 +8,7 @@
 #include <string.h>
 #include <wchar.h>
 #include "program-audio.h"
+#include "routing-test.h"
 
 static volatile LONG64 reference_frames;
 static volatile LONG reference_peak;
@@ -194,6 +195,7 @@ int main(int argc, char **argv)
     struct obs_video_info vi = {0};
     bool mix_test = getenv("BILINGUE_MIX_TEST") != NULL;
     const char *scene_case = getenv("BILINGUE_TEST_SCENE_CASE");
+    bool routing_case = scene_case && !strncmp(scene_case, "routing-", 8);
     vi.graphics_module = graphics_path;
     vi.fps_num = 30; vi.fps_den = 1;
     vi.base_width = 1280; vi.base_height = 720;
@@ -296,6 +298,8 @@ int main(int argc, char **argv)
                                 (nested && strcmp(scene_case, "nested") != 0 ? nested : scene);
     if (scene_case && strcmp(scene_case, "shared") == 0) obs_set_output_source(2, media);
     if (!defer_media) obs_set_output_source(0, obs_scene_get_source(scene));
+    struct routing_test *routing = routing_case ? routing_test_create(scene_case, media) : NULL;
+    if (routing_case && !routing) return 13;
     if (argc == 5 && !defer_media) {
         obs_source_media_play_pause(media, true);
         Sleep(300);
@@ -319,6 +323,7 @@ int main(int argc, char **argv)
             obs_data_set_string(caption_settings, "audio_source_uuid", obs_source_get_uuid(media));
         if (getenv("BILINGUE_TEST_EMPTY_TRACK")) obs_data_set_int(caption_settings, "obs_mix_track", 2);
         if (scene_case) obs_data_set_string(caption_settings, "audio_source_uuid", obs_source_get_uuid(obs_scene_get_source(selected_scene)));
+        if (routing) routing_test_settings(routing, caption_settings);
         obs_add_raw_audio_callback(0, NULL, reference_audio, NULL);
     }
     obs_data_set_int(caption_settings, "width", 1280);
@@ -374,17 +379,19 @@ int main(int argc, char **argv)
     if (source_test) colors_ok = colors_ok && obs_properties_get(props, "audio_source_uuid") &&
                                obs_properties_get(props, "translation_enabled") &&
                                obs_source_get_width(filter) == 1280 && obs_source_get_height(filter) == 360;
-    if (scene_case) {
+    if (scene_case && !routing_case) {
         obs_property_t *audio_choice = obs_properties_get(props, "audio_source_uuid");
         obs_property_t *scene_help = obs_properties_get(props, "scene_audio_help");
         obs_property_t *track = obs_properties_get(props, "obs_mix_track");
         colors_ok = colors_ok && offers(audio_choice, obs_source_get_uuid(obs_scene_get_source(selected_scene))) &&
                     scene_help && obs_property_visible(scene_help) && obs_property_enabled(track);
         obs_data_t *options = obs_source_get_settings(filter);
+        char original_choice[64];
+        snprintf(original_choice, sizeof(original_choice), "%s", obs_data_get_string(options, "audio_source_uuid"));
         obs_data_set_string(options, "audio_source_uuid", obs_source_get_uuid(media));
         obs_property_modified(audio_choice, options);
         colors_ok = colors_ok && !obs_property_visible(scene_help) && !obs_property_enabled(track);
-        obs_data_set_string(options, "audio_source_uuid", obs_source_get_uuid(obs_scene_get_source(selected_scene)));
+        obs_data_set_string(options, "audio_source_uuid", original_choice);
         obs_property_modified(audio_choice, options);
         colors_ok = colors_ok && obs_property_visible(scene_help) && obs_property_enabled(track);
         obs_data_release(options);
@@ -398,6 +405,7 @@ int main(int argc, char **argv)
     bool caption_visible = !visibility_test;
     if (source_test && !visibility_test) caption_item = obs_scene_add(scene, filter);
     else if (!source_test) obs_source_filter_add(media, filter);
+    if (routing && !routing_test_attach(routing, filter)) return 13;
     /* Resume only after the complete capture source is attached. Seek again so
      * browser warmup cannot change the region used by paired experiments. */
     bool manual_show = defer_media && source_test && !visibility_test;
@@ -447,6 +455,7 @@ int main(int argc, char **argv)
     }
     while (GetTickCount64() - start < ((uint64_t)seconds + tail_seconds) * 1000) {
         uint64_t elapsed = GetTickCount64() - start;
+        if (routing && !routing_test_tick(routing, elapsed)) return 14;
         if (mix_test) {
             if (!scene_case || strcmp(scene_case, "basic") == 0)
                 obs_source_set_muted(media, elapsed >= 2000 && elapsed < 4000);
@@ -522,12 +531,13 @@ int main(int argc, char **argv)
         }
         printf("{\"elapsed_ms\":%llu,\"media_ms\":%lld}\n",
                (unsigned long long)(GetTickCount64() - start), (long long)obs_source_media_get_time(media));
-        Sleep(scene_case && strcmp(scene_case, "stress") == 0 ? 50 : 1000);
+        Sleep(routing_case || (scene_case && strcmp(scene_case, "stress") == 0) ? 50 : 1000);
     }
     if (capture.path) obs_remove_raw_video_callback(capture_frame, &capture);
     if (mix_test) obs_remove_raw_audio_callback(0, reference_audio, NULL);
     printf("{\"cleanup\":\"scene\"}\n");
     obs_set_output_source(0, NULL);
+    if (routing) routing_test_destroy(routing);
     if (scene_case && strcmp(scene_case, "shared") == 0) obs_set_output_source(2, NULL);
     if (global_audio) {
         obs_set_output_source(1, NULL);

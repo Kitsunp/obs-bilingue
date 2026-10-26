@@ -6,6 +6,8 @@
 #include "language-rules.h"
 #include "program-audio.h"
 #include "scene-audio.h"
+#include "routing-controls.h"
+#include "source-audio.h"
 
 struct subtitle_source {
     obs_source_t *source, *browser, *preview;
@@ -21,6 +23,8 @@ struct subtitle_source {
     size_t program_mix;
     obs_source_t *scene_tap;
     float scene_refresh_seconds;
+    struct caption_controls *controls;
+    struct caption_input *input;
 };
 
 static void capture_program(void *data, size_t mix, struct audio_data *audio)
@@ -30,15 +34,9 @@ static void capture_program(void *data, size_t mix, struct audio_data *audio)
     caption_capture(s->transport, audio->data, audio->frames, false);
 }
 
-static void capture_audio(void *data, obs_source_t *source, const struct audio_data *audio, bool muted)
-{
-    UNUSED_PARAMETER(source);
-    struct subtitle_source *s = data;
-    caption_capture(s->transport, audio->data, audio->frames, muted);
-}
-
 static void detach_audio(struct subtitle_source *s)
 {
+    if (s->input) { caption_input_destroy(s->input); s->input = NULL; }
     if (s->scene_tap) {
         caption_scene_audio_destroy(s->scene_tap);
         s->scene_tap = NULL;
@@ -50,8 +48,6 @@ static void detach_audio(struct subtitle_source *s)
     if (!s->audio_target) return;
     obs_source_t *target = obs_weak_source_get_source(s->audio_target);
     if (target) {
-        if (obs_source_get_type(target) == OBS_SOURCE_TYPE_INPUT)
-            obs_source_remove_audio_capture_callback(target, capture_audio, s);
         obs_source_release(target);
     }
     obs_weak_source_release(s->audio_target);
@@ -98,7 +94,8 @@ static void sync_audio(struct subtitle_source *s)
         } else if (target && target != s->source && obs_source_get_type(target) == OBS_SOURCE_TYPE_INPUT &&
             (obs_source_get_output_flags(target) & OBS_SOURCE_AUDIO)) {
             s->audio_target = obs_source_get_weak_source(target);
-            obs_source_add_audio_capture_callback(target, capture_audio, s);
+            s->input = caption_input_create(s->transport, target);
+            s->scene_refresh_seconds = 0.1f;
         }
     }
     if (previous) obs_source_release(previous);
@@ -153,6 +150,7 @@ static void *create_source(obs_data_t *settings, obs_source_t *source)
         if (desktop) obs_source_release(desktop);
     }
     update_source(s, settings);
+    s->controls = caption_controls_create(source, settings);
     if (!s->browser) blog(LOG_WARNING, "[Bilingue] Browser renderer unavailable; enable the OBS browser module");
     return s;
 }
@@ -161,6 +159,7 @@ static void destroy_source(void *data)
 {
     struct subtitle_source *s = data;
     blog(LOG_DEBUG, "[Bilingue] Releasing subtitle source");
+    caption_controls_destroy(s->controls);
     caption_transport_enable(s->transport, false);
     detach_audio(s);
     caption_transport_destroy(s->transport);
@@ -184,9 +183,7 @@ static bool enumerate_audio(void *data, obs_source_t *source)
 
 static bool enumerate_scene(void *data, obs_source_t *source)
 {
-    char label[512];
-    snprintf(label, sizeof(label), "Escena: %s (solo sus fuentes)", obs_source_get_name(source));
-    obs_property_list_add_string(data, label, obs_source_get_uuid(source));
+    obs_property_list_add_string(data, obs_source_get_name(source), obs_source_get_uuid(source));
     return true;
 }
 
@@ -198,6 +195,10 @@ static bool audio_choice_changed(obs_properties_t *props, obs_property_t *proper
     bool scene = source && obs_source_get_type(source) == OBS_SOURCE_TYPE_SCENE;
     obs_property_set_visible(obs_properties_get(props, "scene_audio_help"), scene);
     obs_property_set_enabled(obs_properties_get(props, "obs_mix_track"), scene || !strcmp(uuid, CAPTION_PROGRAM_AUDIO));
+    const char *help = caption_input_help(source);
+    obs_property_t *source_help = obs_properties_get(props, "source_audio_help");
+    if (help) obs_property_set_description(source_help, help);
+    obs_property_set_visible(source_help, help != NULL);
     if (source) obs_source_release(source);
     return true;
 }
@@ -214,24 +215,33 @@ static obs_properties_t *source_properties(void *data)
 {
     struct subtitle_source *s = data;
     obs_properties_t *props = obs_properties_create();
+    obs_data_t *settings = s ? obs_source_get_settings(s->source) : obs_data_create();
+    if (!s) caption_defaults(settings);
     obs_property_t *list = obs_properties_add_list(props, "audio_source_uuid", "Audio que se va a subtitular",
                                                   OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
     obs_property_list_add_string(list, "Selecciona una fuente de audio o multimedia", "");
-    obs_property_list_add_string(list, "Mezcla del directo de OBS (escenas, microfono y escritorio)", CAPTION_PROGRAM_AUDIO);
+    if (!strcmp(obs_data_get_string(settings, "audio_source_uuid"), CAPTION_PROGRAM_AUDIO))
+        obs_property_list_add_string(list, "Mezcla completa de OBS (seleccion guardada)", CAPTION_PROGRAM_AUDIO);
     obs_enum_scenes(enumerate_scene, list);
     obs_enum_sources(enumerate_audio, list);
     obs_properties_add_int(props, "obs_mix_track", "Pista de mezcla OBS (0 = automatica; 1-6 = fija)", 0, 6, 1);
     obs_properties_add_text(props, "scene_audio_help",
         "Solo las entradas visibles de la escena activa seleccionada, incluidos grupos y escenas anidadas. "
         "Si incluyes una captura del escritorio, esa entrada puede contener varios programas.", OBS_TEXT_INFO);
+    obs_properties_add_text(props, "source_audio_help", "", OBS_TEXT_INFO);
     obs_property_set_modified_callback(list, audio_choice_changed);
+    obs_property_t *microphone = obs_properties_add_list(props, "hotkey_microphone_uuid", "Microfono para los atajos",
+                                                       OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+    obs_property_list_add_string(microphone, "Automatico si hay un unico microfono global; o elige uno", "");
+    obs_enum_sources(enumerate_audio, microphone);
+    obs_properties_add_text(props, "routing_hotkey_help",
+        "OBS > Ajustes > Atajos: Bilingue, alternar microfono / fuente elegida. "
+        "Solo cambia el audio de los subtitulos; la emision y sus escenas no se modifican.", OBS_TEXT_INFO);
     caption_add_properties(props);
     obs_properties_remove_by_name(props, "audio_port");
     obs_properties_remove_by_name(props, "overlays");
     obs_properties_remove_by_name(props, "show_original");
     obs_properties_remove_by_name(props, "color_rules");
-    obs_data_t *settings = s ? obs_source_get_settings(s->source) : obs_data_create();
-    if (!s) caption_defaults(settings);
     audio_choice_changed(props, list, settings);
     caption_rules_properties(props, settings, s ? s->source : NULL);
     obs_data_release(settings);
@@ -244,8 +254,10 @@ static obs_properties_t *source_properties(void *data)
 static void source_defaults(obs_data_t *settings)
 {
     caption_defaults(settings);
-    obs_data_set_default_string(settings, "audio_source_uuid", CAPTION_PROGRAM_AUDIO);
+    obs_data_set_default_string(settings, "audio_source_uuid", "");
     obs_data_set_default_int(settings, "obs_mix_track", 0);
+    obs_data_set_default_string(settings, "hotkey_microphone_uuid", "");
+    obs_data_set_default_string(settings, "hotkey_return_source_uuid", "");
     obs_data_set_default_int(settings, "width", 1920);
     obs_data_set_default_int(settings, "height", 450);
 }
@@ -261,6 +273,7 @@ static void show_source(void *data)
 {
     struct subtitle_source *s = data;
     InterlockedExchange(&s->visible, 1);
+    caption_controls_enable(s->controls, true);
     caption_transport_enable(s->transport, true);
 }
 
@@ -268,19 +281,22 @@ static void hide_source(void *data)
 {
     struct subtitle_source *s = data;
     InterlockedExchange(&s->visible, 0);
+    caption_controls_enable(s->controls, false);
     caption_transport_enable(s->transport, false);
 }
 
 static void tick_source(void *data, float seconds)
 {
     struct subtitle_source *s = data;
+    caption_controls_tick(s->controls, seconds);
     bool visible = InterlockedCompareExchange(&s->visible, 0, 0) != 0;
     caption_preview_tick(s->preview, &s->preview_window);
     if (!visible || s->audio_dirty || !s->audio_target || s->program_capture || s->scene_tap) sync_audio(s);
-    if (visible && s->scene_tap) {
+    if (visible && (s->scene_tap || s->input)) {
         s->scene_refresh_seconds -= seconds;
         if (s->scene_refresh_seconds <= 0.0f) {
-            caption_scene_audio_refresh(s->scene_tap);
+            if (s->scene_tap) caption_scene_audio_refresh(s->scene_tap);
+            if (s->input) caption_input_tick(s->input);
             s->scene_refresh_seconds = 0.1f;
         }
     }

@@ -43,6 +43,8 @@ def exercise(plugin, folder, legacy_scene=False, individual=False, empty_track=F
         output.writeframes(struct.pack("<hh", 3277, 3277) * (48000 * 12))
     metrics = {"frames": 0, "peak": 0.0, "muted_interval_frames": 0, "zero_frames": 0,
                "quarter_volume_frames": 0, "two_inputs_frames": 0, "sequence_gaps": 0, "errors": []}
+    if scene_case.startswith("routing-"):
+        metrics.update(microphone_frames=0, timeline={})
     listener = socket.socket()
     listener.bind(("127.0.0.1", 0))
     listener.listen(1)
@@ -50,6 +52,7 @@ def exercise(plugin, folder, legacy_scene=False, individual=False, empty_track=F
     stop = threading.Event()
 
     def collect():
+        first_audio_at = None
         while not stop.is_set():
             try:
                 connection, _ = listener.accept()
@@ -74,6 +77,17 @@ def exercise(plugin, folder, legacy_scene=False, individual=False, empty_track=F
                             previous_sequence = sequence
                             values = array.array("f", receive_exact(connection, count * 4))
                             peak = max(abs(value) for value in values)
+                            if "timeline" in metrics:
+                                received_at = time.monotonic()
+                                if first_audio_at is None:
+                                    first_audio_at = received_at
+                                # Handoffs discard old PCM. A sample-count clock would
+                                # compress those gaps and move later assertions in time.
+                                bucket = str(int((received_at - first_audio_at) * 10))
+                                values_in_bucket = metrics["timeline"].setdefault(bucket, [])
+                                values_in_bucket.append(round(peak, 6))
+                                if .074 < peak < .076:
+                                    metrics["microphone_frames"] += count
                             metrics["frames"] += count
                             metrics["peak"] = max(metrics["peak"], peak)
                             if 0.045 < peak < 0.055:
@@ -111,11 +125,23 @@ def exercise(plugin, folder, legacy_scene=False, individual=False, empty_track=F
         environment["BILINGUE_TEST_MIX_VISIBILITY"] = "1"
     if scene_case:
         environment["BILINGUE_TEST_SCENE_CASE"] = scene_case
+    if scene_case.startswith("routing-"):
+        mic_audio = folder / "synthetic-microphone.wav"
+        with wave.open(str(mic_audio), "wb") as output:
+            output.setnchannels(2)
+            output.setsampwidth(2)
+            output.setframerate(48000)
+            output.writeframes(struct.pack("<hh", 2458, 2458) * (48000 * 12))
+        environment["BILINGUE_TEST_MIC_AUDIO"] = str(mic_audio)
+        environment["BILINGUE_TEST_APP_AUDIO"] = str(audio)
     try:
         command = [str(ROOT / "build/obs-test-host.exe"), str(audio), str(seconds), str(plugin.resolve())]
         result = subprocess.run(command,
                                 cwd=ROOT, env=environment, capture_output=True, timeout=seconds + 30,
                                 creationflags=subprocess.CREATE_NO_WINDOW)
+    except subprocess.TimeoutExpired as error:
+        metrics["errors"].append("TimeoutExpired")
+        result = subprocess.CompletedProcess(command, -1, error.stdout or b"", error.stderr or b"")
     finally:
         stop.set()
         thread.join(timeout=3)
