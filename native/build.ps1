@@ -23,6 +23,7 @@ if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear la libreria de importacion OB
     "-I$ObsHeaders" "-I$captionBuild" (Join-Path $PSScriptRoot 'plugin.c') `
     (Join-Path $PSScriptRoot 'subtitle-source.c') `
     (Join-Path $PSScriptRoot 'program-audio.c') `
+    (Join-Path $PSScriptRoot 'scene-audio.c') `
     (Join-Path $PSScriptRoot 'engine-runtime.c') (Join-Path $PSScriptRoot 'language-rules.c') `
     (Join-Path $PSScriptRoot 'style-preview.c') `
     (Join-Path $captionBuild 'obs.lib') -lws2_32 -lshell32 -luser32 `

@@ -1,10 +1,12 @@
 # Arquitectura y privacidad
 
-La fuente nativa captura la mezcla de programa de OBS o una entrada individual y
+La fuente nativa captura las entradas de una escena elegida, la mezcla de programa de OBS o una entrada individual y
 la entrega por loopback al motor local. La mezcla permite recibir audio interno de
 escenas, vídeos y fuentes Navegador aunque no pase por los altavoces. Utiliza el
 callback público de audio mezclado y conserva los volúmenes y silencios de OBS;
 incluye las fuentes globales de la pista elegida. Véase [la actualización de audio](AUDIO_UPDATE.md).
+El modo [aislado por escena](SCENE_AUDIO.md) recorre únicamente sus entradas visibles
+y mantiene una selección acotada, sin incorporar las entradas globales que estén fuera.
 El motor remuestrea a 16 kHz, ejecuta Nemotron mediante su ABI C CUDA,
 combina las etiquetas acústicas con detección textual de idioma y entrega filas
 al navegador interno de OBS. La traducción opcional utiliza un proceso nativo

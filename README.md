@@ -6,11 +6,11 @@ El audio y el texto se procesan localmente. No genera voz.
 
 [**Descargar instalador para Windows x64**](https://github.com/Kitsunp/obs-bilingue/releases/download/v0.4.1/OBS-Bilingue-0.4.1-Windows-x64-Setup.exe)
 
-[**Actualizar una instalación existente a 0.4.2: audio de escenas**](https://github.com/Kitsunp/obs-bilingue/releases/download/v0.4.2/OBS-Bilingue-0.4.2-Windows-x64-Update.exe).
+[**Actualizar una instalación existente a 0.4.3: audio aislado por escena**](https://github.com/Kitsunp/obs-bilingue/releases/download/v0.4.3/OBS-Bilingue-0.4.3-Windows-x64-Update.exe).
 Esta actualización pequeña solo sustituye el plugin nativo. Conserva el motor, los
 modelos y la configuración. Cierra OBS antes de ejecutarla; el actualizador bloquea
 la instalación si OBS sigue abierto y no cierra procesos automáticamente.
-Para una instalación nueva, instala primero 0.4.1 y después aplica 0.4.2.
+Para una instalación nueva, instala primero 0.4.1 y después aplica 0.4.3.
 
 **Versión preliminar para Windows x64 y GPU NVIDIA.** El canto, las expresiones
 muy alargadas, el ruido y los cambios rápidos de idioma todavía pueden producir
@@ -30,8 +30,11 @@ certificado la estabilidad durante varias horas.
    de editor y puede mostrar SmartScreen al ejecutarla; consulta [la explicación y
    verificación de la descarga](docs/INSTALL.md#smartscreen-y-firma-digital).
 3. Abre OBS y añade **Fuentes → + → Bilingue - Subtitulos de voz en directo**.
-   En sus propiedades elige **Mezcla del directo de OBS (escenas, microfono y escritorio)**
-   para escuchar el audio que OBS envía al programa, incluidos vídeos y fuentes Navegador.
+   En sus propiedades elige **Escena: nombre (solo sus fuentes)** para subtitular
+   únicamente las entradas de audio visibles de esa escena, incluidos grupos y escenas
+   anidadas. Así puedes subtitular el vídeo y dejar fuera Discord y los micrófonos globales.
+   **Mezcla del directo de OBS (escenas, microfono y escritorio)** escucha toda la mezcla
+   de la pista elegida, incluidas las entradas globales.
    También puedes elegir un micrófono, escritorio o fuente multimedia individual.
 
 La mezcla respeta los silencios, volúmenes y pistas de OBS. No equivale al audio de
@@ -41,6 +44,13 @@ directo, la de la grabación activa; sin ambos, usa la pista 1. Puedes fijar una
 entre 1 y 6. Las fuentes configuradas antes de actualizar conservan su elección;
 cambia esa propiedad para activar la captura de la mezcla. Solo se capturan fuentes
 que OBS ya esté procesando y enviando a esa pista.
+
+El aislamiento por escena funciona con fuentes de audio OBS: por ejemplo, Multimedia,
+Navegador con audio controlado por OBS o Captura de audio de aplicación. Una captura
+de ventana/pantalla solo aporta imagen. Si añades Audio del escritorio a la escena,
+esa única entrada puede contener varios programas y el plugin los recibirá juntos.
+Una escena seleccionada que no esté activa en el programa queda en silencio. Véase
+[el funcionamiento y las pruebas del aislamiento](docs/SCENE_AUDIO.md).
 
 Mostrar la fuente inicia el motor; ocultarla desconecta la captura y libera los
 procesos administrados tras unos segundos. Se puede probar sin emitir ni grabar.

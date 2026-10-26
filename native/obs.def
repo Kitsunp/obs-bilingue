@@ -114,3 +114,19 @@ EXPORTS
     obs_source_set_volume
     obs_source_set_muted
     obs_source_set_audio_mixers
+    obs_enum_scenes
+    obs_obj_get_data
+    obs_scene_enum_items
+    obs_sceneitem_visible
+    obs_sceneitem_get_source
+    obs_source_get_ref
+    obs_source_get_id
+    obs_group_from_source
+    obs_source_active
+    obs_source_removed
+    obs_source_get_volume
+    obs_source_audio_pending
+    obs_source_get_audio_timestamp
+    obs_source_get_audio_mix
+    obs_scene_add_group
+    obs_sceneitem_remove

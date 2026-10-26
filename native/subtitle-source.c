@@ -5,6 +5,7 @@
 #include <windows.h>
 #include "language-rules.h"
 #include "program-audio.h"
+#include "scene-audio.h"
 
 struct subtitle_source {
     obs_source_t *source, *browser, *preview;
@@ -18,6 +19,8 @@ struct subtitle_source {
     unsigned long renderer_generation;
     bool program_capture;
     size_t program_mix;
+    obs_source_t *scene_tap;
+    float scene_refresh_seconds;
 };
 
 static void capture_program(void *data, size_t mix, struct audio_data *audio)
@@ -36,6 +39,10 @@ static void capture_audio(void *data, obs_source_t *source, const struct audio_d
 
 static void detach_audio(struct subtitle_source *s)
 {
+    if (s->scene_tap) {
+        caption_scene_audio_destroy(s->scene_tap);
+        s->scene_tap = NULL;
+    }
     if (s->program_capture) {
         obs_remove_raw_audio_callback(s->program_mix, capture_program, s);
         s->program_capture = false;
@@ -43,7 +50,8 @@ static void detach_audio(struct subtitle_source *s)
     if (!s->audio_target) return;
     obs_source_t *target = obs_weak_source_get_source(s->audio_target);
     if (target) {
-        obs_source_remove_audio_capture_callback(target, capture_audio, s);
+        if (obs_source_get_type(target) == OBS_SOURCE_TYPE_INPUT)
+            obs_source_remove_audio_capture_callback(target, capture_audio, s);
         obs_source_release(target);
     }
     obs_weak_source_release(s->audio_target);
@@ -60,6 +68,7 @@ static void sync_audio(struct subtitle_source *s)
         obs_data_release(settings);
         if (!s->program_capture || mix != s->program_mix) {
             detach_audio(s);
+            caption_transport_discontinuity(s->transport);
             s->program_mix = mix;
             obs_add_raw_audio_callback(mix, NULL, capture_program, s);
             s->program_capture = true;
@@ -71,9 +80,22 @@ static void sync_audio(struct subtitle_source *s)
     obs_source_t *target = *uuid ? obs_get_source_by_uuid(uuid) : NULL;
     if (s->audio_dirty) blog(LOG_DEBUG, "[Bilingue] Audio selection: configured=%d found=%d", *uuid != 0, target != NULL);
     obs_source_t *previous = s->audio_target ? obs_weak_source_get_source(s->audio_target) : NULL;
-    if (target != previous) {
+    size_t scene_mix = 0;
+    bool scene = target && obs_source_get_type(target) == OBS_SOURCE_TYPE_SCENE;
+    if (scene) {
+        obs_data_t *settings = obs_source_get_settings(s->source);
+        scene_mix = caption_program_mix(settings);
+        obs_data_release(settings);
+    }
+    if (target != previous || (s->scene_tap && scene_mix != s->program_mix)) {
         detach_audio(s);
-        if (target && target != s->source && obs_source_get_type(target) == OBS_SOURCE_TYPE_INPUT &&
+        caption_transport_discontinuity(s->transport);
+        if (scene) {
+            s->scene_tap = caption_scene_audio_create(s->transport, target, scene_mix);
+            s->program_mix = scene_mix;
+            s->scene_refresh_seconds = 0.1f;
+            if (s->scene_tap) s->audio_target = obs_source_get_weak_source(target);
+        } else if (target && target != s->source && obs_source_get_type(target) == OBS_SOURCE_TYPE_INPUT &&
             (obs_source_get_output_flags(target) & OBS_SOURCE_AUDIO)) {
             s->audio_target = obs_source_get_weak_source(target);
             obs_source_add_audio_capture_callback(target, capture_audio, s);
@@ -160,6 +182,26 @@ static bool enumerate_audio(void *data, obs_source_t *source)
     return true;
 }
 
+static bool enumerate_scene(void *data, obs_source_t *source)
+{
+    char label[512];
+    snprintf(label, sizeof(label), "Escena: %s (solo sus fuentes)", obs_source_get_name(source));
+    obs_property_list_add_string(data, label, obs_source_get_uuid(source));
+    return true;
+}
+
+static bool audio_choice_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+{
+    UNUSED_PARAMETER(property);
+    const char *uuid = obs_data_get_string(settings, "audio_source_uuid");
+    obs_source_t *source = *uuid ? obs_get_source_by_uuid(uuid) : NULL;
+    bool scene = source && obs_source_get_type(source) == OBS_SOURCE_TYPE_SCENE;
+    obs_property_set_visible(obs_properties_get(props, "scene_audio_help"), scene);
+    obs_property_set_enabled(obs_properties_get(props, "obs_mix_track"), scene || !strcmp(uuid, CAPTION_PROGRAM_AUDIO));
+    if (source) obs_source_release(source);
+    return true;
+}
+
 static bool preview_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
     UNUSED_PARAMETER(props); UNUSED_PARAMETER(property);
@@ -176,8 +218,13 @@ static obs_properties_t *source_properties(void *data)
                                                   OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
     obs_property_list_add_string(list, "Selecciona una fuente de audio o multimedia", "");
     obs_property_list_add_string(list, "Mezcla del directo de OBS (escenas, microfono y escritorio)", CAPTION_PROGRAM_AUDIO);
+    obs_enum_scenes(enumerate_scene, list);
     obs_enum_sources(enumerate_audio, list);
     obs_properties_add_int(props, "obs_mix_track", "Pista de mezcla OBS (0 = automatica; 1-6 = fija)", 0, 6, 1);
+    obs_properties_add_text(props, "scene_audio_help",
+        "Solo las entradas visibles de la escena activa seleccionada, incluidos grupos y escenas anidadas. "
+        "Si incluyes una captura del escritorio, esa entrada puede contener varios programas.", OBS_TEXT_INFO);
+    obs_property_set_modified_callback(list, audio_choice_changed);
     caption_add_properties(props);
     obs_properties_remove_by_name(props, "audio_port");
     obs_properties_remove_by_name(props, "overlays");
@@ -185,6 +232,7 @@ static obs_properties_t *source_properties(void *data)
     obs_properties_remove_by_name(props, "color_rules");
     obs_data_t *settings = s ? obs_source_get_settings(s->source) : obs_data_create();
     if (!s) caption_defaults(settings);
+    audio_choice_changed(props, list, settings);
     caption_rules_properties(props, settings, s ? s->source : NULL);
     obs_data_release(settings);
     obs_properties_add_button2(props, "preview_styles", "Vista previa de colores y estilo", preview_clicked, s);
@@ -225,11 +273,17 @@ static void hide_source(void *data)
 
 static void tick_source(void *data, float seconds)
 {
-    UNUSED_PARAMETER(seconds);
     struct subtitle_source *s = data;
     bool visible = InterlockedCompareExchange(&s->visible, 0, 0) != 0;
     caption_preview_tick(s->preview, &s->preview_window);
-    if (!visible || s->audio_dirty || !s->audio_target || s->program_capture) sync_audio(s);
+    if (!visible || s->audio_dirty || !s->audio_target || s->program_capture || s->scene_tap) sync_audio(s);
+    if (visible && s->scene_tap) {
+        s->scene_refresh_seconds -= seconds;
+        if (s->scene_refresh_seconds <= 0.0f) {
+            caption_scene_audio_refresh(s->scene_tap);
+            s->scene_refresh_seconds = 0.1f;
+        }
+    }
     unsigned long generation = caption_connection_generation(s->transport);
     if (visible && s->browser && generation != s->renderer_generation) {
         s->renderer_generation = generation;
@@ -258,6 +312,7 @@ static const char *source_name(void *unused)
 
 void caption_register_source(void)
 {
+    caption_register_scene_audio();
     struct obs_source_info info = {0};
     info.id = "obs_bilingue_source";
     info.type = OBS_SOURCE_TYPE_INPUT;

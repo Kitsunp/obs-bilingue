@@ -26,6 +26,7 @@ struct filter {
     obs_source_t *source;
     HANDLE thread;
     volatile LONG stop, enabled, read_index, write_index, port, generation;
+    volatile LONG pending_discontinuity;
     uint32_t sequence, rate;
     size_t channels;
     SRWLOCK config_lock;
@@ -134,6 +135,9 @@ void caption_capture(void *opaque, uint8_t *const planes[MAX_AV_PLANES], uint32_
 {
     struct filter *f = opaque;
     if (!InterlockedCompareExchange(&f->enabled, 0, 0)) return;
+    /* Only this producer writes sequence; a skipped ID tells the existing engine
+     * to clear old captions/queued translation and start a fresh ASR stream. */
+    if (InterlockedExchange(&f->pending_discontinuity, 0)) f->sequence++;
     struct obs_audio_info current_info;
     if (obs_get_audio_info(&current_info)) {
         f->rate = current_info.samples_per_sec;
@@ -264,6 +268,12 @@ void caption_transport_enable(void *opaque, bool enabled)
 {
     struct filter *f = opaque;
     InterlockedExchange(&f->enabled, enabled);
+}
+
+void caption_transport_discontinuity(void *opaque)
+{
+    struct filter *f = opaque;
+    InterlockedExchange(&f->pending_discontinuity, 1);
 }
 
 unsigned long caption_connection_generation(void *opaque)
@@ -457,7 +467,7 @@ MODULE_EXPORT bool obs_module_load(void)
     info.filter_audio = filter_audio;
     obs_register_source(&info);
     caption_register_source();
-    blog(LOG_INFO, "[Bilingue] Loaded 0.4.2; OBS program audio capture; automatic visibility lifecycle");
+    blog(LOG_INFO, "[Bilingue] Loaded 0.4.3; isolated scene audio capture; automatic visibility lifecycle");
     return true;
 }
 MODULE_EXPORT void obs_module_unload(void) { WSACleanup(); }

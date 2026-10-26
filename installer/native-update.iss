@@ -4,7 +4,7 @@
 #ifndef NativeHash
   #error Define NativeHash with the compiled DLL SHA256
 #endif
-#define Version "0.4.2"
+#define Version "0.4.3"
 
 [Setup]
 AppId={{64F92710-4094-4AC3-A8BF-FDDC056AE566}
@@ -93,5 +93,5 @@ end;
 
 procedure InitializeWizard;
 begin
-  WizardForm.FinishedLabel.Caption := 'Plugin actualizado. Abre OBS y, en las propiedades de la fuente de subtítulos, elige «Mezcla del directo de OBS (escenas, microfono y escritorio)» para capturar el audio de las escenas.';
+  WizardForm.FinishedLabel.Caption := 'Plugin actualizado. Abre OBS y, en las propiedades de la fuente de subtítulos, selecciona «Escena: nombre (solo sus fuentes)» para aislar su audio. La opción «Mezcla del directo de OBS» incluye también las entradas globales.';
 end;

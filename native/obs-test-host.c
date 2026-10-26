@@ -193,6 +193,7 @@ int main(int argc, char **argv)
     if (!obs_reset_audio(&ai)) return 4;
     struct obs_video_info vi = {0};
     bool mix_test = getenv("BILINGUE_MIX_TEST") != NULL;
+    const char *scene_case = getenv("BILINGUE_TEST_SCENE_CASE");
     vi.graphics_module = graphics_path;
     vi.fps_num = 30; vi.fps_den = 1;
     vi.base_width = 1280; vi.base_height = 720;
@@ -242,7 +243,7 @@ int main(int argc, char **argv)
     obs_data_t *settings = obs_data_create();
     obs_data_set_bool(settings, "is_local_file", true);
     obs_data_set_string(settings, "local_file", argv[1]);
-    obs_data_set_bool(settings, "looping", false);
+    obs_data_set_bool(settings, "looping", scene_case && strcmp(scene_case, "stress") == 0);
     obs_data_set_bool(settings, "restart_on_activate", true);
     obs_data_set_bool(settings, "close_when_inactive", defer_media);
     obs_data_set_bool(settings, "hw_decode", false);
@@ -258,7 +259,42 @@ int main(int argc, char **argv)
     obs_data_release(settings);
     if (!media) return 8;
     obs_scene_t *scene = obs_scene_create("Bilingue test scene");
-    obs_scene_add(scene, media);
+    obs_scene_t *nested = NULL;
+    obs_sceneitem_t *media_item = NULL;
+    if (scene_case && (strcmp(scene_case, "nested") == 0 || strcmp(scene_case, "switch") == 0 ||
+                       strcmp(scene_case, "removed-scene") == 0 || strcmp(scene_case, "stress") == 0)) {
+        nested = obs_scene_create("Bilingue nested audio test");
+        media_item = obs_scene_add(nested, media);
+        obs_scene_add(scene, obs_scene_get_source(nested));
+    } else if (scene_case && strcmp(scene_case, "group") == 0) {
+        obs_sceneitem_t *group = obs_scene_add_group(scene, "Bilingue group audio test");
+        obs_source_t *group_source = obs_sceneitem_get_source(group);
+        obs_source_set_volume(group_source, 0.5f);
+        media_item = obs_scene_add(obs_group_from_source(group_source), media);
+    } else media_item = obs_scene_add(scene, media);
+    obs_source_t *second_audio = NULL;
+    obs_sceneitem_t *second_item = NULL;
+    if (scene_case && (strcmp(scene_case, "edit") == 0 || strcmp(scene_case, "two-inputs") == 0 ||
+                       strcmp(scene_case, "switch") == 0 || strcmp(scene_case, "stress") == 0)) {
+        settings = obs_source_get_settings(media);
+        second_audio = obs_source_create("ffmpeg_source", "Bilingue second scene input", settings, NULL);
+        obs_data_release(settings);
+        if (!second_audio) return 12;
+        obs_source_set_volume(second_audio, 0.25f);
+        if (strcmp(scene_case, "two-inputs") == 0) second_item = obs_scene_add(scene, second_audio);
+    }
+    obs_scene_t *other_scene = NULL;
+    if (scene_case && (strcmp(scene_case, "switch") == 0 || strcmp(scene_case, "stress") == 0)) {
+        other_scene = obs_scene_create("Bilingue alternative scene");
+        obs_scene_add(other_scene, second_audio);
+        obs_scene_add(scene, obs_scene_get_source(other_scene));
+    } else if (scene_case && strcmp(scene_case, "inactive") == 0) {
+        other_scene = obs_scene_create("Bilingue inactive scene");
+        obs_scene_add(other_scene, global_audio);
+    }
+    obs_scene_t *selected_scene = other_scene && strcmp(scene_case, "inactive") == 0 ? other_scene :
+                                (nested && strcmp(scene_case, "nested") != 0 ? nested : scene);
+    if (scene_case && strcmp(scene_case, "shared") == 0) obs_set_output_source(2, media);
     if (!defer_media) obs_set_output_source(0, obs_scene_get_source(scene));
     if (argc == 5 && !defer_media) {
         obs_source_media_play_pause(media, true);
@@ -282,6 +318,7 @@ int main(int argc, char **argv)
         if (getenv("BILINGUE_TEST_INDIVIDUAL"))
             obs_data_set_string(caption_settings, "audio_source_uuid", obs_source_get_uuid(media));
         if (getenv("BILINGUE_TEST_EMPTY_TRACK")) obs_data_set_int(caption_settings, "obs_mix_track", 2);
+        if (scene_case) obs_data_set_string(caption_settings, "audio_source_uuid", obs_source_get_uuid(obs_scene_get_source(selected_scene)));
         obs_add_raw_audio_callback(0, NULL, reference_audio, NULL);
     }
     obs_data_set_int(caption_settings, "width", 1280);
@@ -337,6 +374,21 @@ int main(int argc, char **argv)
     if (source_test) colors_ok = colors_ok && obs_properties_get(props, "audio_source_uuid") &&
                                obs_properties_get(props, "translation_enabled") &&
                                obs_source_get_width(filter) == 1280 && obs_source_get_height(filter) == 360;
+    if (scene_case) {
+        obs_property_t *audio_choice = obs_properties_get(props, "audio_source_uuid");
+        obs_property_t *scene_help = obs_properties_get(props, "scene_audio_help");
+        obs_property_t *track = obs_properties_get(props, "obs_mix_track");
+        colors_ok = colors_ok && offers(audio_choice, obs_source_get_uuid(obs_scene_get_source(selected_scene))) &&
+                    scene_help && obs_property_visible(scene_help) && obs_property_enabled(track);
+        obs_data_t *options = obs_source_get_settings(filter);
+        obs_data_set_string(options, "audio_source_uuid", obs_source_get_uuid(media));
+        obs_property_modified(audio_choice, options);
+        colors_ok = colors_ok && !obs_property_visible(scene_help) && !obs_property_enabled(track);
+        obs_data_set_string(options, "audio_source_uuid", obs_source_get_uuid(obs_scene_get_source(selected_scene)));
+        obs_property_modified(audio_choice, options);
+        colors_ok = colors_ok && obs_property_visible(scene_help) && obs_property_enabled(track);
+        obs_data_release(options);
+    }
     if (props) obs_properties_destroy(props);
     if (!colors_ok) return 9;
     if (source_test && !verify_language_ui(filter)) return 11;
@@ -370,6 +422,7 @@ int main(int argc, char **argv)
         if (tail_seconds > 5) return 11;
     }
     bool playback_paused = false;
+    bool edited = false, input_removed = false, selected_other = false, scene_removed = false;
     setvbuf(stdout, NULL, _IONBF, 0);
     printf("{\"native_color_properties\":true}\n");
     printf("{\"native_source\":%s}\n", source_test ? "true" : "false");
@@ -395,7 +448,36 @@ int main(int argc, char **argv)
     while (GetTickCount64() - start < ((uint64_t)seconds + tail_seconds) * 1000) {
         uint64_t elapsed = GetTickCount64() - start;
         if (mix_test) {
-            obs_source_set_muted(media, elapsed >= 2000 && elapsed < 4000);
+            if (!scene_case || strcmp(scene_case, "basic") == 0)
+                obs_source_set_muted(media, elapsed >= 2000 && elapsed < 4000);
+            if (scene_case && strcmp(scene_case, "hidden-item") == 0)
+                obs_sceneitem_set_visible(media_item, elapsed < 2000 || elapsed >= 4000);
+            if (scene_case && strcmp(scene_case, "edit") == 0 && elapsed >= 2000 && !edited) {
+                second_item = obs_scene_add(scene, second_audio);
+                edited = true;
+            }
+            if (scene_case && strcmp(scene_case, "edit") == 0 && elapsed >= 4000 && !input_removed) {
+                obs_sceneitem_remove(second_item);
+                second_item = NULL;
+                input_removed = true;
+            }
+            if (scene_case && (strcmp(scene_case, "switch") == 0 || strcmp(scene_case, "stress") == 0)) {
+                bool wanted_other = strcmp(scene_case, "stress") == 0 ?
+                                    ((elapsed / 300) % 2) != 0 : elapsed >= 2000 && elapsed < 4000;
+                if (wanted_other != selected_other) {
+                    obs_data_t *options = obs_source_get_settings(filter);
+                    obs_data_set_string(options, "audio_source_uuid", obs_source_get_uuid(obs_scene_get_source(wanted_other ? other_scene : nested)));
+                    obs_source_update(filter, options);
+                    obs_data_release(options);
+                    selected_other = wanted_other;
+                }
+            }
+            if (scene_case && strcmp(scene_case, "muted-scene") == 0)
+                obs_source_set_muted(obs_scene_get_source(selected_scene), elapsed >= 2000 && elapsed < 4000);
+            if (scene_case && strcmp(scene_case, "removed-scene") == 0 && elapsed >= 2000 && !scene_removed) {
+                obs_source_remove(obs_scene_get_source(selected_scene));
+                scene_removed = true;
+            }
             if (getenv("BILINGUE_TEST_MIX_VISIBILITY")) {
                 bool wanted = elapsed < 2000 || elapsed >= 4000;
                 if (wanted != caption_visible) {
@@ -440,12 +522,13 @@ int main(int argc, char **argv)
         }
         printf("{\"elapsed_ms\":%llu,\"media_ms\":%lld}\n",
                (unsigned long long)(GetTickCount64() - start), (long long)obs_source_media_get_time(media));
-        Sleep(1000);
+        Sleep(scene_case && strcmp(scene_case, "stress") == 0 ? 50 : 1000);
     }
     if (capture.path) obs_remove_raw_video_callback(capture_frame, &capture);
     if (mix_test) obs_remove_raw_audio_callback(0, reference_audio, NULL);
     printf("{\"cleanup\":\"scene\"}\n");
     obs_set_output_source(0, NULL);
+    if (scene_case && strcmp(scene_case, "shared") == 0) obs_set_output_source(2, NULL);
     if (global_audio) {
         obs_set_output_source(1, NULL);
         obs_source_remove(global_audio);
@@ -455,6 +538,9 @@ int main(int argc, char **argv)
     if (source_test) obs_source_remove(filter);
     obs_source_remove(media);
     obs_scene_release(scene);
+    if (nested) { obs_source_remove(obs_scene_get_source(nested)); obs_scene_release(nested); }
+    if (other_scene) { obs_source_remove(obs_scene_get_source(other_scene)); obs_scene_release(other_scene); }
+    if (second_audio) { obs_source_remove(second_audio); obs_source_release(second_audio); }
     if (manual_show) obs_source_dec_showing(filter);
     obs_source_release(filter);
     obs_source_release(media);

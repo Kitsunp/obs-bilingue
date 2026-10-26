@@ -38,6 +38,7 @@ CUDA. Torch no es una dependencia del instalador de uso diario.
 | --- | --- | --- |
 | Fuente y visibilidad | `native/subtitle-source.c` | Conectar/desconectar el audio elegido, renderizar y exponer propiedades |
 | Mezcla de programa | `native/program-audio.c` | Resolver la pista de emisión/grabación sin modificar las salidas; la fuente conecta su callback de mezcla |
+| Audio aislado por escena | `native/scene-audio.c` | Selección de entradas visibles, mezcla local sincronizada y exclusión de fuentes globales ajenas |
 | Captura y transporte | `native/plugin.c` | PCM mono, cola acotada, envío desde un worker |
 | Inicio del motor | `native/engine-runtime.c`, `engine/launch.py` | Leer metadatos locales, instancia única y supervisión del hijo |
 | Entrada del motor | `engine/server.py` | Validar paquetes, remuestrear, exponer estado y gestionar inactividad |

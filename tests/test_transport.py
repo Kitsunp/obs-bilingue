@@ -94,3 +94,44 @@ def test_only_one_audio_client_accepted():
         await server.wait_closed()
 
     asyncio.run(run())
+
+
+def test_source_switch_sequence_gap_clears_previous_caption_and_audio_epoch():
+    async def run():
+        engine = Engine(read_config())
+        engine.ready = True
+        engine.translator = StubTranslator()
+        server = await asyncio.start_server(engine.audio, "127.0.0.1", 0)
+        port = server.sockets[0].getsockname()[1]
+        _, writer = await asyncio.open_connection("127.0.0.1", port)
+        audio = np.full(1024, .1, np.float32).tobytes()
+
+        async def wait_for(predicate):
+            for _ in range(100):
+                if predicate():
+                    return
+                await asyncio.sleep(.01)
+            raise AssertionError("Audio transport did not process the expected frame")
+
+        try:
+            writer.write(struct.pack("<4sIIII", b"BLC1", 16000, 1024, 10, 0) + audio)
+            await writer.drain()
+            await wait_for(lambda: engine.inbox.samples > 0)
+            old_epoch = engine.inbox.epoch
+            old_segment = engine.state.begin()
+            engine.state.partial(old_segment, "Earlier input")
+            assert engine.state.snapshot()["rows"]
+            # The native source marks a new input by skipping one sequence ID.
+            writer.write(struct.pack("<4sIIII", b"BLC1", 16000, 1024, 12, 0) + audio)
+            await writer.drain()
+            await wait_for(lambda: engine.state.metrics.get("transport_discontinuities") == 1)
+            assert engine.inbox.epoch > old_epoch
+            assert engine.state.snapshot()["rows"] == []
+            assert not engine.state.translated(old_segment, "Earlier input", {"es": "Earlier translation"})
+        finally:
+            writer.close()
+            await writer.wait_closed()
+            server.close()
+            await server.wait_closed()
+
+    asyncio.run(run())

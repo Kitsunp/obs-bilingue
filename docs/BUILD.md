@@ -19,7 +19,7 @@ uv pip install --python .venv/Scripts/python.exe pytest==9.1.1 ruff==0.17.0
 
 ## Native DLL and installer
 
-For the native-only 0.4.2 audio update, see [AUDIO_UPDATE.md](AUDIO_UPDATE.md).
+For the native-only 0.4.3 scene isolation update, see [SCENE_AUDIO.md](SCENE_AUDIO.md).
 The full dependency/bootstrap installer below remains the 0.4.1 base; apply the
 native update afterward. Its component assets are not republished for this patch.
 

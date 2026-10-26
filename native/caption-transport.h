@@ -5,6 +5,7 @@
 void *caption_transport_create(obs_data_t *settings, obs_source_t *source);
 void *caption_transport_create_inactive(obs_data_t *settings, obs_source_t *source);
 void caption_transport_enable(void *data, bool enabled);
+void caption_transport_discontinuity(void *data);
 unsigned long caption_connection_generation(void *data);
 void caption_transport_config(void *data, char *buffer, size_t size);
 void caption_start_engine(void);

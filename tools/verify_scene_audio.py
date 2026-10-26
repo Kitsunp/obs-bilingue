@@ -31,7 +31,8 @@ def receive_exact(connection, size):
     return data
 
 
-def exercise(plugin, folder, legacy_scene=False, individual=False, empty_track=False, visibility=False):
+def exercise(plugin, folder, legacy_scene=False, individual=False, empty_track=False,
+             visibility=False, scene_case="", seconds=6):
     started = time.monotonic()
     folder.mkdir(parents=True, exist_ok=True)
     audio = folder / "synthetic.wav"
@@ -40,7 +41,8 @@ def exercise(plugin, folder, legacy_scene=False, individual=False, empty_track=F
         output.setsampwidth(2)
         output.setframerate(48000)
         output.writeframes(struct.pack("<hh", 3277, 3277) * (48000 * 12))
-    metrics = {"frames": 0, "peak": 0.0, "muted_interval_frames": 0, "errors": []}
+    metrics = {"frames": 0, "peak": 0.0, "muted_interval_frames": 0, "zero_frames": 0,
+               "quarter_volume_frames": 0, "two_inputs_frames": 0, "sequence_gaps": 0, "errors": []}
     listener = socket.socket()
     listener.bind(("127.0.0.1", 0))
     listener.listen(1)
@@ -55,6 +57,7 @@ def exercise(plugin, folder, legacy_scene=False, individual=False, empty_track=F
                 continue
             with connection:
                 connection.settimeout(2)
+                previous_sequence = None
                 try:
                     while not stop.is_set():
                         header = receive_exact(connection, HEADER.size)
@@ -65,12 +68,22 @@ def exercise(plugin, folder, legacy_scene=False, individual=False, empty_track=F
                             continue
                         elif magic == b"BLC1":
                             assert rate == 48000 and 0 < count <= 2048
+                            if (previous_sequence is not None and
+                                    sequence != (previous_sequence + 1) & 0xFFFFFFFF):
+                                metrics["sequence_gaps"] += 1
+                            previous_sequence = sequence
                             values = array.array("f", receive_exact(connection, count * 4))
                             peak = max(abs(value) for value in values)
                             metrics["frames"] += count
                             metrics["peak"] = max(metrics["peak"], peak)
                             if 0.045 < peak < 0.055:
                                 metrics["muted_interval_frames"] += count
+                            if peak == 0:
+                                metrics["zero_frames"] += count
+                            if .024 < peak < .026:
+                                metrics["quarter_volume_frames"] += count
+                            if .124 < peak < .126:
+                                metrics["two_inputs_frames"] += count
                         else:
                             raise ValueError("Invalid native packet")
                 except (EOFError, TimeoutError, OSError):
@@ -96,10 +109,12 @@ def exercise(plugin, folder, legacy_scene=False, individual=False, empty_track=F
         environment["BILINGUE_TEST_EMPTY_TRACK"] = "1"
     if visibility:
         environment["BILINGUE_TEST_MIX_VISIBILITY"] = "1"
+    if scene_case:
+        environment["BILINGUE_TEST_SCENE_CASE"] = scene_case
     try:
-        command = [str(ROOT / "build/obs-test-host.exe"), str(audio), "6", str(plugin.resolve())]
+        command = [str(ROOT / "build/obs-test-host.exe"), str(audio), str(seconds), str(plugin.resolve())]
         result = subprocess.run(command,
-                                cwd=ROOT, env=environment, capture_output=True, timeout=35,
+                                cwd=ROOT, env=environment, capture_output=True, timeout=seconds + 30,
                                 creationflags=subprocess.CREATE_NO_WINDOW)
     finally:
         stop.set()
