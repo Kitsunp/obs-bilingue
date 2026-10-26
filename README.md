@@ -6,6 +6,12 @@ El audio y el texto se procesan localmente. No genera voz.
 
 [**Descargar instalador para Windows x64**](https://github.com/Kitsunp/obs-bilingue/releases/download/v0.4.1/OBS-Bilingue-0.4.1-Windows-x64-Setup.exe)
 
+[**Actualizar una instalación existente a 0.4.2: audio de escenas**](https://github.com/Kitsunp/obs-bilingue/releases/download/v0.4.2/OBS-Bilingue-0.4.2-Windows-x64-Update.exe).
+Esta actualización pequeña solo sustituye el plugin nativo. Conserva el motor, los
+modelos y la configuración. Cierra OBS antes de ejecutarla; el actualizador bloquea
+la instalación si OBS sigue abierto y no cierra procesos automáticamente.
+Para una instalación nueva, instala primero 0.4.1 y después aplica 0.4.2.
+
 **Versión preliminar para Windows x64 y GPU NVIDIA.** El canto, las expresiones
 muy alargadas, el ruido y los cambios rápidos de idioma todavía pueden producir
 omisiones o errores. No se garantiza un retraso máximo de un segundo ni se ha
@@ -24,7 +30,17 @@ certificado la estabilidad durante varias horas.
    de editor y puede mostrar SmartScreen al ejecutarla; consulta [la explicación y
    verificación de la descarga](docs/INSTALL.md#smartscreen-y-firma-digital).
 3. Abre OBS y añade **Fuentes → + → Bilingue - Subtitulos de voz en directo**.
-   En sus propiedades elige el micrófono, escritorio o fuente multimedia que quieres escuchar.
+   En sus propiedades elige **Mezcla del directo de OBS (escenas, microfono y escritorio)**
+   para escuchar el audio que OBS envía al programa, incluidos vídeos y fuentes Navegador.
+   También puedes elegir un micrófono, escritorio o fuente multimedia individual.
+
+La mezcla respeta los silencios, volúmenes y pistas de OBS. No equivale al audio de
+una sola escena: incluye las fuentes globales que llegan a la pista elegida. Con
+**Pista de mezcla OBS = 0**, sigue la pista principal del directo activo; si no hay
+directo, la de la grabación activa; sin ambos, usa la pista 1. Puedes fijar una pista
+entre 1 y 6. Las fuentes configuradas antes de actualizar conservan su elección;
+cambia esa propiedad para activar la captura de la mezcla. Solo se capturan fuentes
+que OBS ya esté procesando y enviando a esa pista.
 
 Mostrar la fuente inicia el motor; ocultarla desconecta la captura y libera los
 procesos administrados tras unos segundos. Se puede probar sin emitir ni grabar.

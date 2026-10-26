@@ -7,6 +7,31 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include "program-audio.h"
+
+static volatile LONG64 reference_frames;
+static volatile LONG reference_peak;
+static void reference_audio(void *unused, size_t mix, struct audio_data *audio)
+{
+    (void)unused; (void)mix;
+    InterlockedAdd64(&reference_frames, audio->frames);
+    const float *plane = (const float *)audio->data[0];
+    if (plane) for (uint32_t i = 0; i < audio->frames; i++) {
+        float value = plane[i] < 0 ? -plane[i] : plane[i];
+        LONG peak = (LONG)(value * 1000000.0f);
+        LONG previous = InterlockedCompareExchange(&reference_peak, 0, 0);
+        while (peak > previous) {
+            LONG seen = InterlockedCompareExchange(&reference_peak, peak, previous);
+            if (seen == previous) break;
+            previous = seen;
+        }
+    }
+}
+static const char *dummy_name(void *data) { (void)data; return "Isolated browser test stub"; }
+static void *dummy_create(obs_data_t *settings, obs_source_t *source) { (void)settings; return source; }
+static void dummy_destroy(void *data) { (void)data; }
+static void dummy_render(void *data, gs_effect_t *effect) { (void)data; (void)effect; }
+static uint32_t dummy_size(void *data) { (void)data; return 64; }
 
 static char obs_root[32768];
 static bool find_obs_root(void)
@@ -167,6 +192,7 @@ int main(int argc, char **argv)
     struct obs_audio_info ai = {48000, SPEAKERS_STEREO};
     if (!obs_reset_audio(&ai)) return 4;
     struct obs_video_info vi = {0};
+    bool mix_test = getenv("BILINGUE_MIX_TEST") != NULL;
     vi.graphics_module = graphics_path;
     vi.fps_num = 30; vi.fps_den = 1;
     vi.base_width = 1280; vi.base_height = 720;
@@ -176,6 +202,11 @@ int main(int argc, char **argv)
     vi.range = VIDEO_RANGE_PARTIAL;
     vi.scale_type = OBS_SCALE_BILINEAR;
     vi.gpu_conversion = true;
+    if (mix_test) {
+        vi.fps_num = 10;
+        vi.base_width = vi.output_width = vi.base_height = vi.output_height = 64;
+        vi.gpu_conversion = false;
+    }
     int video_result = obs_reset_video(&vi);
     if (video_result != OBS_VIDEO_SUCCESS) {
         fprintf(stderr, "Video initialization: %d\n", video_result);
@@ -196,7 +227,14 @@ int main(int argc, char **argv)
     if (!load_module(argv[3], plugin_data)) return 7;
     char source_test_env[8];
     bool source_test = GetEnvironmentVariableA("BILINGUE_SOURCE_TEST", source_test_env, sizeof(source_test_env)) != 0;
-    if (source_test && (!obs_path(module_path, sizeof(module_path), "obs-plugins/64bit/obs-browser.dll") ||
+    if (source_test && mix_test) {
+        struct obs_source_info stub = {0};
+        stub.id = "browser_source"; stub.type = OBS_SOURCE_TYPE_INPUT;
+        stub.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
+        stub.get_name = dummy_name; stub.create = dummy_create; stub.destroy = dummy_destroy;
+        stub.get_width = dummy_size; stub.get_height = dummy_size; stub.video_render = dummy_render;
+        obs_register_source(&stub);
+    } else if (source_test && (!obs_path(module_path, sizeof(module_path), "obs-plugins/64bit/obs-browser.dll") ||
         !obs_path(module_data, sizeof(module_data), "data/obs-plugins/obs-browser") ||
         !load_module(module_path, module_data))) return 10;
     char defer_env[8];
@@ -210,6 +248,13 @@ int main(int argc, char **argv)
     obs_data_set_bool(settings, "hw_decode", false);
     obs_data_set_int(settings, "speed_percent", 100);
     obs_source_t *media = obs_source_create("ffmpeg_source", "Bilingue video test", settings, NULL);
+    obs_source_t *global_audio = mix_test ? obs_source_create("ffmpeg_source", "Bilingue global audio test", settings, NULL) : NULL;
+    if (global_audio) {
+        obs_source_set_audio_mixers(media, 1);
+        obs_source_set_audio_mixers(global_audio, 1);
+        obs_source_set_volume(global_audio, 0.5f);
+        obs_set_output_source(1, global_audio);
+    }
     obs_data_release(settings);
     if (!media) return 8;
     obs_scene_t *scene = obs_scene_create("Bilingue test scene");
@@ -231,6 +276,14 @@ int main(int argc, char **argv)
         obs_data_set_int(caption_settings, "audio_port", port);
     }
     obs_data_set_string(caption_settings, "audio_source_uuid", obs_source_get_uuid(media));
+    if (mix_test) {
+        obs_data_set_string(caption_settings, "audio_source_uuid",
+            getenv("BILINGUE_TEST_LEGACY_SCENE") ? obs_source_get_uuid(obs_scene_get_source(scene)) : CAPTION_PROGRAM_AUDIO);
+        if (getenv("BILINGUE_TEST_INDIVIDUAL"))
+            obs_data_set_string(caption_settings, "audio_source_uuid", obs_source_get_uuid(media));
+        if (getenv("BILINGUE_TEST_EMPTY_TRACK")) obs_data_set_int(caption_settings, "obs_mix_track", 2);
+        obs_add_raw_audio_callback(0, NULL, reference_audio, NULL);
+    }
     obs_data_set_int(caption_settings, "width", 1280);
     obs_data_set_int(caption_settings, "height", 360);
     uint64_t creation_start = GetTickCount64();
@@ -341,6 +394,19 @@ int main(int argc, char **argv)
     }
     while (GetTickCount64() - start < ((uint64_t)seconds + tail_seconds) * 1000) {
         uint64_t elapsed = GetTickCount64() - start;
+        if (mix_test) {
+            obs_source_set_muted(media, elapsed >= 2000 && elapsed < 4000);
+            if (getenv("BILINGUE_TEST_MIX_VISIBILITY")) {
+                bool wanted = elapsed < 2000 || elapsed >= 4000;
+                if (wanted != caption_visible) {
+                    obs_sceneitem_set_visible(caption_item, wanted);
+                    caption_visible = wanted;
+                }
+            }
+            printf("{\"reference_frames\":%llu,\"reference_peak_scaled\":%ld}\n",
+                   (unsigned long long)InterlockedCompareExchange64(&reference_frames, 0, 0),
+                   InterlockedCompareExchange(&reference_peak, 0, 0));
+        }
         if (check_renderer_port && !renderer_checked && elapsed >= 1000) {
             struct renderer_check check = {expected_prefix, false, false};
             obs_source_enum_active_sources(filter, check_renderer, &check);
@@ -377,8 +443,14 @@ int main(int argc, char **argv)
         Sleep(1000);
     }
     if (capture.path) obs_remove_raw_video_callback(capture_frame, &capture);
+    if (mix_test) obs_remove_raw_audio_callback(0, reference_audio, NULL);
     printf("{\"cleanup\":\"scene\"}\n");
     obs_set_output_source(0, NULL);
+    if (global_audio) {
+        obs_set_output_source(1, NULL);
+        obs_source_remove(global_audio);
+        obs_source_release(global_audio);
+    }
     obs_source_remove(obs_scene_get_source(scene));
     if (source_test) obs_source_remove(filter);
     obs_source_remove(media);

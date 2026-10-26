@@ -105,3 +105,12 @@ EXPORTS
     obs_property_set_description
 
     obs_source_media_play_pause
+    obs_add_raw_audio_callback
+    obs_remove_raw_audio_callback
+    obs_output_active
+    obs_output_get_audio_encoder
+    obs_encoder_get_mixer_index
+    obs_output_release
+    obs_source_set_volume
+    obs_source_set_muted
+    obs_source_set_audio_mixers

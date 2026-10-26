@@ -22,6 +22,7 @@ if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear la libreria de importacion OB
 & $Zig cc -shared -O2 @captionDebugFlags "-ffile-prefix-map=$captionRoot=." "-ffile-prefix-map=$ObsHeaders=obs-headers" -Wall -Wextra -Werror -std=c11 -target x86_64-windows-gnu `
     "-I$ObsHeaders" "-I$captionBuild" (Join-Path $PSScriptRoot 'plugin.c') `
     (Join-Path $PSScriptRoot 'subtitle-source.c') `
+    (Join-Path $PSScriptRoot 'program-audio.c') `
     (Join-Path $PSScriptRoot 'engine-runtime.c') (Join-Path $PSScriptRoot 'language-rules.c') `
     (Join-Path $PSScriptRoot 'style-preview.c') `
     (Join-Path $captionBuild 'obs.lib') -lws2_32 -lshell32 -luser32 `

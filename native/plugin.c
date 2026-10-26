@@ -457,7 +457,7 @@ MODULE_EXPORT bool obs_module_load(void)
     info.filter_audio = filter_audio;
     obs_register_source(&info);
     caption_register_source();
-    blog(LOG_INFO, "[Bilingue] Loaded 0.4.1; local captions; automatic visibility lifecycle");
+    blog(LOG_INFO, "[Bilingue] Loaded 0.4.2; OBS program audio capture; automatic visibility lifecycle");
     return true;
 }
 MODULE_EXPORT void obs_module_unload(void) { WSACleanup(); }

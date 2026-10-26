@@ -37,6 +37,7 @@ CUDA. Torch no es una dependencia del instalador de uso diario.
 | Frontera | Implementación | Responsabilidad |
 | --- | --- | --- |
 | Fuente y visibilidad | `native/subtitle-source.c` | Conectar/desconectar el audio elegido, renderizar y exponer propiedades |
+| Mezcla de programa | `native/program-audio.c` | Resolver la pista de emisión/grabación sin modificar las salidas; la fuente conecta su callback de mezcla |
 | Captura y transporte | `native/plugin.c` | PCM mono, cola acotada, envío desde un worker |
 | Inicio del motor | `native/engine-runtime.c`, `engine/launch.py` | Leer metadatos locales, instancia única y supervisión del hijo |
 | Entrada del motor | `engine/server.py` | Validar paquetes, remuestrear, exponer estado y gestionar inactividad |
